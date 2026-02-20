@@ -1,0 +1,7 @@
+.next
+.next-build
+.next-prod
+.next-local
+node_modules
+coverage
+dist

@@ -1,0 +1,481 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  STAFF
+  ADMIN
+
+  @@map("user_role")
+}
+
+enum OrderType {
+  DINE_IN
+  DELIVERY
+  PICKUP
+
+  @@map("order_type")
+}
+
+enum OrderStatus {
+  ACCEPTED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  COMPLETED
+  DELIVERED
+
+  @@map("order_status")
+}
+
+enum PaymentState {
+  UNPAID
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED_PARTIAL
+  REFUNDED_FULL
+
+  @@map("payment_state")
+}
+
+enum OfferType {
+  PERCENTAGE
+  FIXED
+  FREE_DELIVERY
+
+  @@map("offer_type")
+}
+
+enum DeliveryFeeStrategy {
+  FLAT     @map("flat")
+  DISTANCE @map("distance")
+  ZONE     @map("zone")
+
+  @@map("delivery_fee_strategy")
+}
+
+enum OfferApplicability {
+  DINE_IN
+  DELIVERY
+  BOTH
+
+  @@map("offer_applicability")
+}
+
+model User {
+  id                      BigInt                  @id @default(autoincrement())
+  email                   String                  @unique
+  passwordHash            String?                 @map("password_hash")
+  fullName                String?                 @map("full_name")
+  createdAt               DateTime                @default(now()) @map("created_at")
+  roles                   UserRoleBinding[]
+  customerProfile         CustomerProfile?
+  addresses               Address[]
+  carts                   Cart[]
+  orders                  Order[]
+  notifications           Notification[]
+  authSessions            AuthSession[]
+  jwtRevocations          JwtRevocation[]
+  phoneVerificationCodes  PhoneVerificationCode[]
+  passwordResetTokens     PasswordResetToken[]
+  orderStatusEventsChange OrderStatusEvent[]      @relation("OrderStatusChangedBy")
+
+  @@map("users")
+}
+
+model UserRoleBinding {
+  id     BigInt   @id @default(autoincrement())
+  userId BigInt   @map("user_id")
+  role   UserRole
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@map("user_roles")
+}
+
+model CustomerProfile {
+  id                BigInt    @id @default(autoincrement())
+  userId            BigInt    @unique @map("user_id")
+  phone             String?   @unique
+  phoneVerifiedAt   DateTime? @map("phone_verified_at")
+  addressLine1      String?   @map("address_line_1")
+  addressCity       String?   @map("address_city")
+  addressPostalCode String?   @map("address_postal_code")
+  lat               Float?
+  lng               Float?
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([phone])
+  @@map("customer_profiles")
+}
+
+model Address {
+  id           BigInt    @id @default(autoincrement())
+  userId       BigInt    @map("user_id")
+  label        String
+  line1        String    @map("line_1")
+  line2        String?   @map("line_2")
+  city         String
+  state        String?
+  postalCode   String?   @map("postal_code")
+  country      String
+  deliveryNote String?   @map("delivery_note")
+  lat          Float?
+  lng          Float?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders       Order[]
+
+  @@index([userId, createdAt])
+  @@map("addresses")
+}
+
+model MenuCategory {
+  id        BigInt     @id @default(autoincrement())
+  name      String     @unique
+  sortOrder Int        @default(0) @map("sort_order")
+  isActive  Boolean    @default(true) @map("is_active")
+  items     MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id           BigInt          @id @default(autoincrement())
+  categoryId   BigInt          @map("category_id")
+  name         String
+  description  String
+  imageUrl     String?         @map("image_url")
+  basePrice    Decimal         @map("base_price") @db.Decimal(10, 2)
+  prepMinutes  Int             @default(10) @map("prep_minutes")
+  isActive     Boolean         @default(true) @map("is_active")
+  dietaryTags  Json            @map("dietary_tags")
+  allergens    Json
+  createdAt    DateTime        @default(now()) @map("created_at")
+  category     MenuCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images       MenuItemImage[]
+  modifierSets ModifierGroup[]
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  reportPopularItems ReportPopularItem[]
+
+  @@index([categoryId])
+  @@map("menu_items")
+}
+
+model MenuItemImage {
+  id        BigInt   @id @default(autoincrement())
+  menuItemId BigInt  @map("menu_item_id")
+  imageUrl  String   @map("image_url")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  menuItem  MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, imageUrl])
+  @@index([menuItemId, sortOrder])
+  @@map("menu_item_images")
+}
+
+model ModifierGroup {
+  id         BigInt           @id @default(autoincrement())
+  menuItemId BigInt           @map("menu_item_id")
+  name       String
+  isRequired Boolean          @default(false) @map("is_required")
+  minSelect  Int              @default(0) @map("min_select")
+  maxSelect  Int              @default(1) @map("max_select")
+  menuItem   MenuItem         @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  options    ModifierOption[]
+
+  @@index([menuItemId])
+  @@map("modifier_groups")
+}
+
+model ModifierOption {
+  id                BigInt             @id @default(autoincrement())
+  groupId           BigInt             @map("group_id")
+  name              String
+  priceDelta        Decimal            @default(0) @map("price_delta") @db.Decimal(10, 2)
+  isActive          Boolean            @default(true) @map("is_active")
+  group             ModifierGroup      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  cartItemModifiers CartItemModifier[]
+
+  @@index([groupId])
+  @@map("modifier_options")
+}
+
+model Cart {
+  id        BigInt     @id @default(autoincrement())
+  userId    BigInt?    @map("user_id")
+  orderType OrderType  @default(DELIVERY) @map("order_type")
+  createdAt DateTime   @default(now()) @map("created_at")
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items     CartItem[]
+
+  @@index([userId])
+  @@map("carts")
+}
+
+model CartItem {
+  id                  BigInt             @id @default(autoincrement())
+  cartId              BigInt             @map("cart_id")
+  menuItemId          BigInt             @map("menu_item_id")
+  quantity            Int
+  unitPrice           Decimal            @map("unit_price") @db.Decimal(10, 2)
+  specialInstructions String?            @map("special_instructions")
+  cart                Cart               @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem            MenuItem           @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  modifiers           CartItemModifier[]
+
+  @@index([cartId])
+  @@index([menuItemId])
+  @@map("cart_items")
+}
+
+model CartItemModifier {
+  id               BigInt         @id @default(autoincrement())
+  cartItemId       BigInt         @map("cart_item_id")
+  modifierOptionId BigInt         @map("modifier_option_id")
+  cartItem         CartItem       @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id], onDelete: Restrict)
+
+  @@unique([cartItemId, modifierOptionId])
+  @@index([modifierOptionId])
+  @@map("cart_item_modifiers")
+}
+
+model DeliveryZone {
+  id          BigInt            @id @default(autoincrement())
+  name        String            @unique
+  postalCodes Json              @map("postal_codes")
+  isActive    Boolean           @default(true) @map("is_active")
+  feeRules    DeliveryFeeRule[]
+
+  @@map("delivery_zones")
+}
+
+model DeliveryFeeRule {
+  id        BigInt              @id @default(autoincrement())
+  strategy  DeliveryFeeStrategy
+  flatFee   Decimal?            @map("flat_fee") @db.Decimal(10, 2)
+  perKm     Decimal?            @map("per_km") @db.Decimal(10, 2)
+  zoneId    BigInt?             @map("zone_id")
+  createdAt DateTime            @default(now()) @map("created_at")
+  zone      DeliveryZone?       @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+
+  @@index([zoneId])
+  @@map("delivery_fee_rules")
+}
+
+model Offer {
+  id            BigInt             @id @default(autoincrement())
+  name          String
+  offerType     OfferType          @map("offer_type")
+  percentageVal Decimal?           @map("percentage_value") @db.Decimal(5, 2)
+  fixedValue    Decimal?           @map("fixed_value") @db.Decimal(10, 2)
+  minOrderTotal Decimal?           @map("min_order_total") @db.Decimal(10, 2)
+  maxOrderTotal Decimal?           @map("max_order_total") @db.Decimal(10, 2)
+  startsAt      DateTime?          @map("starts_at")
+  endsAt        DateTime?          @map("ends_at")
+  appliesTo     OfferApplicability @map("applies_to")
+  isActive      Boolean            @default(true) @map("is_active")
+
+  @@index([isActive, startsAt, endsAt])
+  @@map("offers")
+}
+
+model Order {
+  id          BigInt             @id @default(autoincrement())
+  publicId    String             @unique @map("public_id")
+  userId      BigInt?            @map("user_id")
+  orderType   OrderType          @map("order_type")
+  status      OrderStatus        @default(ACCEPTED)
+  subtotal    Decimal            @db.Decimal(10, 2)
+  discount    Decimal            @default(0) @db.Decimal(10, 2)
+  tax         Decimal            @default(0) @db.Decimal(10, 2)
+  deliveryFee Decimal            @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  total       Decimal            @db.Decimal(10, 2)
+  etaMinutes  Int?               @map("eta_minutes")
+  addressId   BigInt?            @map("address_id")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  address     Address?           @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  items       OrderItem[]
+  statusLog   OrderStatusEvent[]
+  payments    Payment[]
+
+  @@index([status])
+  @@index([orderType])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  BigInt               @id @default(autoincrement())
+  orderId             BigInt               @map("order_id")
+  menuItemId          BigInt?              @map("menu_item_id")
+  itemNameSnapshot    String               @map("item_name_snapshot")
+  quantity            Int
+  unitPrice           Decimal              @map("unit_price") @db.Decimal(10, 2)
+  specialInstructions String?              @map("special_instructions")
+  order               Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem            MenuItem?            @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  modifiers           OrderItemModifier[]
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderItemModifier {
+  id           BigInt    @id @default(autoincrement())
+  orderItemId  BigInt    @map("order_item_id")
+  nameSnapshot String    @map("name_snapshot")
+  priceDelta   Decimal   @default(0) @map("price_delta") @db.Decimal(10, 2)
+  orderItem    OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+  @@map("order_item_modifiers")
+}
+
+model OrderStatusEvent {
+  id            BigInt      @id @default(autoincrement())
+  orderId       BigInt      @map("order_id")
+  status        OrderStatus
+  changedBy     BigInt?     @map("changed_by")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  order         Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedByUser User?       @relation("OrderStatusChangedBy", fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@map("order_status_events")
+}
+
+model Payment {
+  id            BigInt        @id @default(autoincrement())
+  orderId       BigInt        @map("order_id")
+  provider      String
+  method        String
+  state         PaymentState  @default(UNPAID)
+  amount        Decimal       @db.Decimal(10, 2)
+  providerTxnId String?       @map("provider_txn_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  events        PaymentEvent[]
+
+  @@index([orderId])
+  @@index([state, createdAt])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id        BigInt   @id @default(autoincrement())
+  paymentId BigInt   @map("payment_id")
+  eventKey  String   @unique @map("event_key")
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at")
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId, createdAt])
+  @@map("payment_events")
+}
+
+model Notification {
+  id        BigInt    @id @default(autoincrement())
+  userId    BigInt?   @map("user_id")
+  title     String
+  body      String
+  isRead    Boolean   @default(false) @map("is_read")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model AuthSession {
+  id               BigInt    @id @default(autoincrement())
+  userId           BigInt    @map("user_id")
+  sessionTokenHash String    @unique @map("session_token_hash")
+  jwtId            String?   @unique @map("jwt_id")
+  userAgent        String?   @map("user_agent")
+  ipAddress        String?   @map("ip_address") @db.VarChar(45)
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+model JwtRevocation {
+  id           BigInt   @id @default(autoincrement())
+  jwtId        String   @unique @map("jwt_id")
+  userId       BigInt?  @map("user_id")
+  revokedReason String? @map("revoked_reason")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("jwt_revocations")
+}
+
+model PhoneVerificationCode {
+  id          BigInt    @id @default(autoincrement())
+  userId      BigInt    @map("user_id")
+  phone       String
+  codeHash    String    @map("code_hash")
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5) @map("max_attempts")
+  expiresAt   DateTime  @map("expires_at")
+  consumedAt  DateTime? @map("consumed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, phone, expiresAt])
+  @@index([expiresAt])
+  @@map("phone_verification_codes")
+}
+
+model PasswordResetToken {
+  id         BigInt    @id @default(autoincrement())
+  userId     BigInt    @map("user_id")
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model ReportDailySales {
+  reportDate DateTime @id @map("report_date") @db.Date
+  grossSales Decimal  @map("gross_sales") @db.Decimal(12, 2)
+  ordersCount Int     @map("orders_count")
+
+  @@map("report_daily_sales")
+}
+
+model ReportPopularItem {
+  id               BigInt    @id @default(autoincrement())
+  reportDate       DateTime  @map("report_date") @db.Date
+  menuItemId       BigInt?   @map("menu_item_id")
+  itemNameSnapshot String    @map("item_name_snapshot")
+  qtySold          Int       @map("qty_sold")
+  menuItem         MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@index([reportDate])
+  @@map("report_popular_items")
+}

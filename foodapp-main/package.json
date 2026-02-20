@@ -1,0 +1,38 @@
+{
+  "name": "foodapp-main",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "npm run lint:fix",
+    "format:check": "npm run lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node tests/run-tests.mjs",
+    "test:watch": "node --watch tests/run-tests.mjs",
+    "db:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db-reset.ps1",
+    "db:migrate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db-migrate.ps1",
+    "db:seed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db-seed.ps1"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.1",
+    "mysql2": "^3.17.3",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.9",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

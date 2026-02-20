@@ -1,7 +1,7 @@
 # FoodApp Vibe Coding Commands (Copy/Paste)
 
 Use these prompts in order with your AI coding tool (Cursor, Codex, Claude Code, etc.).
-Each prompt tells the AI exactly what to build and keeps all `specs.md` requirements covered.
+Each prompt tells the AI exactly what to build, keeps all `specs.md` requirements covered, and enforces mobile-friendly responsive UX.
 
 ## Command 0: Load Context and Plan
 
@@ -29,8 +29,9 @@ Requirements:
 - Backend API
 - Database migrations and seed setup
 - Environment variable template
-- Docker/dev scripts
+- Local dev scripts
 - Lint/format/test setup
+- Mobile-friendly responsive UI baseline for customer and staff pages
 
 Then run the project and confirm local startup commands.
 ```
@@ -239,6 +240,7 @@ Must include:
 - reports: sales and popular items with date filters
 
 Focus on clear UX for high-speed restaurant operations.
+Ensure dashboard usability on desktop and tablet/mobile widths.
 ```
 
 ## Command 13: Customer UX Completion
@@ -337,6 +339,7 @@ You must include:
 - staff dashboard: live queue, order updates, menu/offers/payment settings, reports sales/popular items
 - tests (unit/integration/e2e), security hardening, performance, CI/CD, deployment docs
 - final requirement traceability matrix to ensure nothing from specs.md is missed
+- mobile-friendly responsive design across all customer and staff screens
 
 If any requirement is ambiguous, choose a sensible default, implement it, and document the decision.
 ```
