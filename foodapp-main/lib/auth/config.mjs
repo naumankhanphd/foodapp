@@ -16,11 +16,26 @@ export const ROLE_VALUES = Object.values(ROLES);
 export const CHECKOUT_RESTRICTION_POLICY =
   "Guests can browse the site, but checkout requires a signed-in customer account with a verified phone number.";
 
+function parseBooleanEnv(value) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return undefined;
+}
+
 export function sessionCookieOptions() {
+  const secureOverride = parseBooleanEnv(process.env.SESSION_COOKIE_SECURE);
   return {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureOverride ?? process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   };
