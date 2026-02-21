@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build",
-    "start": "next start",
+    "build": "next build --webpack",
+    "start": "node .next-local/standalone/server.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "npm run lint:fix",
