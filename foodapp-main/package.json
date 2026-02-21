@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack",
+    "build": "next build --webpack && npm run prepare:standalone",
+    "prepare:standalone": "node scripts/prepare-standalone.mjs",
     "start": "node .next-local/standalone/server.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
