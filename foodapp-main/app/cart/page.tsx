@@ -57,10 +57,70 @@ type CartPayload = {
 };
 
 type ItemDraft = {
-  quantity: string;
   specialInstructions: string;
   selectedOptionIds: string[];
 };
+
+type CartSnapshot = CartPayload["cart"];
+
+function recalculateCart(snapshot: CartSnapshot): CartSnapshot {
+  const itemCount = snapshot.items.reduce((total, item) => total + item.quantity, 0);
+  const subtotal = snapshot.items.reduce((total, item) => total + item.lineTotal, 0);
+  const hasValidationIssues = snapshot.items.some((item) => item.validationIssues.length > 0);
+
+  return {
+    ...snapshot,
+    itemCount,
+    subtotal,
+    hasValidationIssues,
+  };
+}
+
+function buildSelectedModifiers(item: CartItem, selectedOptionIds: string[]) {
+  const selected = new Set(selectedOptionIds);
+  const selectedModifiers: CartItem["selectedModifiers"] = [];
+
+  for (const group of item.modifierGroups) {
+    for (const option of group.options) {
+      if (!selected.has(option.id)) {
+        continue;
+      }
+      selectedModifiers.push({
+        optionId: option.id,
+        optionName: option.name,
+        groupName: group.name,
+        priceDelta: option.priceDelta,
+      });
+    }
+  }
+
+  return selectedModifiers;
+}
+
+function applyDraftToItem(item: CartItem, draft: ItemDraft): CartItem {
+  const selectedOptionIds = [...draft.selectedOptionIds];
+  const selectedModifiers = buildSelectedModifiers(item, selectedOptionIds);
+  const modifierTotal = selectedModifiers.reduce((sum, entry) => sum + entry.priceDelta, 0);
+  const unitPrice = item.basePrice + modifierTotal;
+  const lineTotal = unitPrice * item.quantity;
+
+  return {
+    ...item,
+    specialInstructions: draft.specialInstructions,
+    selectedOptionIds,
+    selectedModifiers,
+    modifierTotal,
+    unitPrice,
+    lineTotal,
+    modifierGroups: item.modifierGroups.map((group) => ({
+      ...group,
+      options: group.options.map((option) => ({
+        ...option,
+        selected: selectedOptionIds.includes(option.id),
+      })),
+    })),
+  };
+}
 
 function labelOrderType(orderType: "DINE_IN" | "DELIVERY" | "PICKUP") {
   if (orderType === "DINE_IN") return "Dine-in";
@@ -71,8 +131,7 @@ function labelOrderType(orderType: "DINE_IN" | "DELIVERY" | "PICKUP") {
 export default function CartPage() {
   const [data, setData] = useState<CartPayload | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({});
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState("");
+  const [orderTypePending, setOrderTypePending] = useState(false);
   const [error, setError] = useState("");
 
   async function loadCart() {
@@ -94,10 +153,9 @@ export default function CartPage() {
       const next: Record<string, ItemDraft> = {};
       for (const item of payload.cart.items) {
         const previousDraft = previous[item.id];
-        next[item.id] = previousDraft || {
-          quantity: String(item.quantity),
-          specialInstructions: item.specialInstructions || "",
-          selectedOptionIds: [...item.selectedOptionIds],
+        next[item.id] = {
+          specialInstructions: previousDraft?.specialInstructions ?? (item.specialInstructions || ""),
+          selectedOptionIds: previousDraft?.selectedOptionIds ?? [...item.selectedOptionIds],
         };
       }
       return next;
@@ -105,14 +163,10 @@ export default function CartPage() {
   }
 
   useEffect(() => {
-    setPending(true);
     setError("");
     void loadCart()
       .catch((caught) => {
         setError(caught instanceof Error ? caught.message : "Unexpected error.");
-      })
-      .finally(() => {
-        setPending(false);
       });
   }, []);
 
@@ -124,10 +178,34 @@ export default function CartPage() {
     return cart.items.length > 0 && !cart.hasValidationIssues;
   }, [cart]);
 
+  function applyServerCart(nextCart: CartSnapshot) {
+    setData((current) => (current ? { ...current, cart: nextCart } : current));
+    setDrafts(() => {
+      const next: Record<string, ItemDraft> = {};
+      for (const item of nextCart.items) {
+        next[item.id] = {
+          specialInstructions: item.specialInstructions ?? "",
+          selectedOptionIds: [...item.selectedOptionIds],
+        };
+      }
+      return next;
+    });
+  }
+
   async function updateOrderType(orderType: "DINE_IN" | "DELIVERY" | "PICKUP") {
-    setPending(true);
+    const previous = data;
+    setOrderTypePending(true);
     setError("");
-    setMessage("");
+    if (previous) {
+      setData({
+        ...previous,
+        cart: {
+          ...previous.cart,
+          orderType,
+        },
+      });
+    }
+
     try {
       const response = await fetch("/api/cart", {
         method: "PATCH",
@@ -141,15 +219,17 @@ export default function CartPage() {
         throw new Error(payload.message || "Unable to update cart.");
       }
       setData(payload);
-      setMessage("Cart order type updated.");
     } catch (caught) {
+      if (previous) {
+        setData(previous);
+      }
       setError(caught instanceof Error ? caught.message : "Unexpected error.");
     } finally {
-      setPending(false);
+      setOrderTypePending(false);
     }
   }
 
-  function toggleDraftOption(item: CartItem, optionId: string) {
+  async function toggleDraftOption(item: CartItem, optionId: string) {
     const group = item.modifierGroups.find((entry) =>
       entry.options.some((option) => option.id === optionId),
     );
@@ -157,54 +237,67 @@ export default function CartPage() {
       return;
     }
 
-    setDrafts((current) => {
-      const existing = current[item.id] || {
-        quantity: String(item.quantity),
-        specialInstructions: item.specialInstructions || "",
-        selectedOptionIds: [...item.selectedOptionIds],
-      };
+    const existing = drafts[item.id] || {
+      specialInstructions: item.specialInstructions || "",
+      selectedOptionIds: [...item.selectedOptionIds],
+    };
 
-      if (existing.selectedOptionIds.includes(optionId)) {
-        return {
-          ...current,
-          [item.id]: {
-            ...existing,
-            selectedOptionIds: existing.selectedOptionIds.filter((value) => value !== optionId),
-          },
-        };
-      }
-
+    let nextSelectedOptionIds: string[];
+    if (existing.selectedOptionIds.includes(optionId)) {
+      nextSelectedOptionIds = existing.selectedOptionIds.filter((value) => value !== optionId);
+    } else {
       const selectedInGroup = existing.selectedOptionIds.filter((selectedId) =>
         group.options.some((option) => option.id === selectedId),
       ).length;
       if (selectedInGroup >= group.maxSelect) {
         setError(`"${group.name}" allows max ${group.maxSelect} selection(s).`);
-        return current;
+        return;
       }
+      nextSelectedOptionIds = [...existing.selectedOptionIds, optionId];
+    }
 
-      return {
+    const nextDraft: ItemDraft = {
+      ...existing,
+      selectedOptionIds: nextSelectedOptionIds,
+    };
+
+    setDrafts((current) => ({
+      ...current,
+      [item.id]: nextDraft,
+    }));
+
+    const saved = await saveItem(item, nextDraft);
+    if (!saved) {
+      setDrafts((current) => ({
         ...current,
-        [item.id]: {
-          ...existing,
-          selectedOptionIds: [...existing.selectedOptionIds, optionId],
-        },
-      };
-    });
+        [item.id]: existing,
+      }));
+    }
   }
 
-  async function saveItem(item: CartItem) {
-    const draft = drafts[item.id];
-    if (!draft) return;
+  async function saveItem(item: CartItem, draftOverride?: ItemDraft) {
+    const draft = draftOverride || drafts[item.id];
+    if (!draft) return false;
 
-    setPending(true);
+    const previous = data;
     setError("");
-    setMessage("");
+    if (previous) {
+      const nextItems = previous.cart.items.map((entry) =>
+        entry.id === item.id ? applyDraftToItem(entry, draft) : entry,
+      );
+      applyServerCart(
+        recalculateCart({
+          ...previous.cart,
+          items: nextItems,
+        }),
+      );
+    }
+
     try {
       const response = await fetch(`/api/cart/items/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          quantity: Number(draft.quantity),
           specialInstructions: draft.specialInstructions,
           selectedOptionIds: draft.selectedOptionIds,
         }),
@@ -215,19 +308,37 @@ export default function CartPage() {
         throw new Error(payload.message || "Unable to update cart item.");
       }
 
-      await loadCart();
-      setMessage("Cart item updated.");
+      const parsed = payload as { cart?: CartSnapshot };
+      if (parsed.cart) {
+        applyServerCart(parsed.cart);
+      } else if (previous) {
+        await loadCart();
+      }
+      return true;
     } catch (caught) {
+      if (previous) {
+        setData(previous);
+      }
       setError(caught instanceof Error ? caught.message : "Unexpected error.");
+      return false;
     } finally {
-      setPending(false);
+      // No per-item loading UI for optimistic interactions.
     }
   }
 
   async function deleteItem(itemId: string) {
-    setPending(true);
+    const previous = data;
     setError("");
-    setMessage("");
+    if (previous) {
+      const nextItems = previous.cart.items.filter((entry) => entry.id !== itemId);
+      applyServerCart(
+        recalculateCart({
+          ...previous.cart,
+          items: nextItems,
+        }),
+      );
+    }
+
     try {
       const response = await fetch(`/api/cart/items/${itemId}`, {
         method: "DELETE",
@@ -236,51 +347,97 @@ export default function CartPage() {
       if (!response.ok) {
         throw new Error(payload.message || "Unable to remove item.");
       }
-      await loadCart();
-      setMessage("Item removed.");
+      const parsed = payload as { cart?: CartSnapshot };
+      if (parsed.cart) {
+        applyServerCart(parsed.cart);
+      }
     } catch (caught) {
+      if (previous) {
+        setData(previous);
+      }
       setError(caught instanceof Error ? caught.message : "Unexpected error.");
     } finally {
-      setPending(false);
+      // No per-item loading UI for optimistic interactions.
+    }
+  }
+
+  async function updateItemQuantity(item: CartItem, direction: "inc" | "dec") {
+    const previous = data;
+    setError("");
+    if (previous) {
+      const nextItems = previous.cart.items
+        .map((entry) => {
+          if (entry.id !== item.id) {
+            return entry;
+          }
+
+          const nextQuantity = direction === "inc" ? Math.min(entry.quantity + 1, 20) : entry.quantity - 1;
+          if (nextQuantity <= 0) {
+            return null;
+          }
+
+          return {
+            ...entry,
+            quantity: nextQuantity,
+            lineTotal: entry.unitPrice * nextQuantity,
+          };
+        })
+        .filter((entry): entry is CartItem => entry !== null);
+
+      applyServerCart(
+        recalculateCart({
+          ...previous.cart,
+          items: nextItems,
+        }),
+      );
+    }
+
+    try {
+      if (direction === "dec" && item.quantity <= 1) {
+        const response = await fetch(`/api/cart/items/${item.id}`, {
+          method: "DELETE",
+        });
+        const payload = (await response.json().catch(() => ({}))) as { message?: string };
+        if (!response.ok) {
+          throw new Error(payload.message || "Unable to remove item.");
+        }
+        const parsed = payload as { cart?: CartSnapshot };
+        if (parsed.cart) {
+          applyServerCart(parsed.cart);
+        }
+        return;
+      }
+
+      const nextQuantity = direction === "inc" ? Math.min(item.quantity + 1, 20) : item.quantity - 1;
+      const response = await fetch(`/api/cart/items/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quantity: nextQuantity,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { message?: string };
+      if (!response.ok) {
+        throw new Error(payload.message || "Unable to update quantity.");
+      }
+      const parsed = payload as { cart?: CartSnapshot };
+      if (parsed.cart) {
+        applyServerCart(parsed.cart);
+      }
+    } catch (caught) {
+      if (previous) {
+        setData(previous);
+      }
+      setError(caught instanceof Error ? caught.message : "Unexpected error.");
+    } finally {
+      // No per-item loading UI for optimistic interactions.
     }
   }
 
   return (
     <main className="py-6 sm:py-10">
       <div className="shell grid gap-5">
-        <header className="panel p-5 sm:p-7">
-          <p className="badge">Customer</p>
-          <h1 className="mt-3 text-3xl sm:text-4xl">Cart</h1>
-          <p className="mt-2 text-sm sm:text-base">
-            Add/remove items, adjust quantity, choose modifiers, and set per-item instructions.
-          </p>
-          <p className="mt-2 text-xs text-[var(--muted)]">
-            Menu prices include VAT/tax.
-          </p>
-          {message ? <p className="mt-3 text-sm text-green-700">{message}</p> : null}
-          {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
-        </header>
-
-        <section className="panel p-4 sm:p-6">
-          <h2 className="text-xl">Order Type</h2>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            {(config?.orderTypes || ["DINE_IN", "DELIVERY", "PICKUP"]).map((orderType) => (
-              <button
-                key={orderType}
-                type="button"
-                className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
-                  cart?.orderType === orderType
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
-                    : "border-[var(--line)] bg-white"
-                }`}
-                disabled={pending}
-                onClick={() => updateOrderType(orderType)}
-              >
-                {labelOrderType(orderType)}
-              </button>
-            ))}
-          </div>
-        </section>
+        {error ? <p className="text-sm text-red-700">{error}</p> : null}
 
         <section className="panel p-4 sm:p-6">
           <div className="flex items-center justify-between gap-2">
@@ -290,7 +447,7 @@ export default function CartPage() {
             </Link>
           </div>
 
-          {!cart || pending ? <p className="mt-3 text-sm">Loading cart...</p> : null}
+          {!cart ? <p className="mt-3 text-sm">Loading cart...</p> : null}
 
           {cart && cart.items.length === 0 ? (
             <div className="mt-4 rounded-lg border border-[var(--line)] bg-white p-4 text-sm">
@@ -301,50 +458,48 @@ export default function CartPage() {
           <div className="mt-3 grid gap-4">
             {cart?.items.map((item) => {
               const draft = drafts[item.id] || {
-                quantity: String(item.quantity),
                 specialInstructions: item.specialInstructions || "",
                 selectedOptionIds: [...item.selectedOptionIds],
               };
 
               return (
                 <article key={item.id} className="rounded-xl border border-[var(--line)] bg-white p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg">{item.itemName}</h3>
-                      <p className="text-xs text-[var(--muted)]">
-                        ${item.unitPrice.toFixed(2)} each incl. VAT
-                      </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 pr-2">
+                      <h3 className="line-clamp-2 text-lg font-extrabold">{item.itemName}</h3>
                     </div>
-                    <p className="text-sm font-semibold">${item.lineTotal.toFixed(2)}</p>
+                    <div className="shrink-0 flex flex-col items-end gap-2">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white px-1 py-1">
+                        <button
+                          type="button"
+                          onClick={() => void updateItemQuantity(item, "dec")}
+                          aria-label={`Decrease ${item.itemName}`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--line)] text-lg font-bold text-[#9f430e] hover:bg-[#fff3e6] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          -
+                        </button>
+                        <span className="min-w-7 text-center text-sm font-extrabold text-[#1f1f1f]">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void updateItemQuantity(item, "inc")}
+                          disabled={item.quantity >= 20}
+                          aria-label={`Increase ${item.itemName}`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-lg font-bold text-[var(--accent-ink)] hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <p className="text-sm font-semibold">${item.lineTotal.toFixed(2)}</p>
+                    </div>
                   </div>
 
                   {item.validationIssues.length > 0 ? (
                     <p className="mt-2 text-xs text-red-700">{item.validationIssues.join(" ")}</p>
                   ) : null}
 
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <label className="grid gap-1 text-sm">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-                        Quantity
-                      </span>
-                      <input
-                        className="rounded-lg border border-[var(--line)] px-3 py-2"
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={draft.quantity}
-                        onChange={(event) =>
-                          setDrafts((current) => ({
-                            ...current,
-                            [item.id]: {
-                              ...draft,
-                              quantity: event.target.value,
-                            },
-                          }))
-                        }
-                      />
-                    </label>
-
+                  <div className="mt-3 grid gap-3">
                     <label className="grid gap-1 text-sm">
                       <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
                         Special Instructions
@@ -362,6 +517,7 @@ export default function CartPage() {
                             },
                           }))
                         }
+                        onBlur={() => void saveItem(item)}
                       />
                     </label>
                   </div>
@@ -384,7 +540,7 @@ export default function CartPage() {
                                 <input
                                   type="checkbox"
                                   checked={draft.selectedOptionIds.includes(option.id)}
-                                  onChange={() => toggleDraftOption(item, option.id)}
+                                  onChange={() => void toggleDraftOption(item, option.id)}
                                 />
                               </span>
                             </label>
@@ -394,27 +550,55 @@ export default function CartPage() {
                     ))}
                   </div>
 
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 flex justify-end">
                     <button
                       type="button"
-                      className="rounded-lg border border-[var(--line)] px-3 py-2 text-sm font-semibold"
-                      disabled={pending}
-                      onClick={() => saveItem(item)}
-                    >
-                      Save changes
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700"
-                      disabled={pending}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-red-600 bg-red-600 text-white transition-transform duration-150 hover:scale-110 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                       onClick={() => deleteItem(item.id)}
+                      aria-label={`Delete ${item.itemName}`}
                     >
-                      Remove
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4h8v2" />
+                        <path d="M19 6l-1 14H6L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
                     </button>
                   </div>
                 </article>
               );
             })}
+          </div>
+        </section>
+
+        <section className="panel p-4 sm:p-6">
+          <p className="sr-only">Order Type</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {(config?.orderTypes || ["DINE_IN", "DELIVERY", "PICKUP"]).map((orderType) => (
+              <button
+                key={orderType}
+                type="button"
+                className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
+                  cart?.orderType === orderType
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
+                    : "border-[var(--line)] bg-white"
+                }`}
+                disabled={orderTypePending}
+                onClick={() => updateOrderType(orderType)}
+              >
+                {labelOrderType(orderType)}
+              </button>
+            ))}
           </div>
         </section>
 

@@ -203,7 +203,7 @@ export function AddToCartForm({ item }: AddToCartFormProps) {
           className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--accent-ink)]"
           disabled={pending}
         >
-          Add to cart
+          {pending ? "Adding..." : "Add to cart"}
         </button>
         <Link
           href="/cart"
