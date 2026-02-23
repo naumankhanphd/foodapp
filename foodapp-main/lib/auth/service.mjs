@@ -26,7 +26,7 @@ import {
   requireResetToken,
 } from "./validation.mjs";
 
-const MANDATORY_GOOGLE_FIELDS = ["phone", "addressLine1", "addressCity", "lat", "lng"];
+const MANDATORY_PROFILE_FIELDS = ["phone", "addressLine1", "addressCity"];
 const DB_CACHE_KEY = "__FOODAPP_AUTH_DB_POOL__";
 
 function requireDatabaseUrl() {
@@ -437,14 +437,41 @@ function randomToken(size = 24) {
   return randomBytes(size).toString("hex");
 }
 
-function hasMandatoryProfile(user) {
-  return (
-    Boolean(user.phone) &&
-    Boolean(user.addressLine1) &&
-    Boolean(user.addressCity) &&
-    typeof user.lat === "number" &&
-    typeof user.lng === "number"
-  );
+export function getMissingMandatoryProfileFields(userLike) {
+  const user = userLike || {};
+  const missing = [];
+
+  if (!user.phone) {
+    missing.push("phone");
+  }
+  if (!user.addressLine1) {
+    missing.push("addressLine1");
+  }
+  if (!user.addressCity) {
+    missing.push("addressCity");
+  }
+
+  return missing;
+}
+
+export function hasMandatoryProfileFields(userLike) {
+  return getMissingMandatoryProfileFields(userLike).length === 0;
+}
+
+function resolveLocationPatch(input, fallbackUserLike) {
+  const hasLat = input.lat !== null && input.lat !== undefined && String(input.lat).trim() !== "";
+  const hasLng = input.lng !== null && input.lng !== undefined && String(input.lng).trim() !== "";
+
+  if (hasLat || hasLng) {
+    const { lat, lng } = requireLocation(input.lat, input.lng);
+    return { lat, lng };
+  }
+
+  const fallbackUser = fallbackUserLike || {};
+  return {
+    lat: typeof fallbackUser.lat === "number" ? fallbackUser.lat : null,
+    lng: typeof fallbackUser.lng === "number" ? fallbackUser.lng : null,
+  };
 }
 
 export function sanitizeUser(user) {
@@ -534,7 +561,7 @@ export async function beginGoogleAuth(input) {
     if (existing) {
       assertRoleCompatibility(existing.role, requiredRole);
 
-      if (hasMandatoryProfile(existing)) {
+      if (hasMandatoryProfileFields(existing)) {
         return {
           requiresCompletion: false,
           user: sanitizeUser(existing),
@@ -577,7 +604,7 @@ export async function beginGoogleAuth(input) {
     return {
       requiresCompletion: true,
       pendingToken,
-      missingFields: [...MANDATORY_GOOGLE_FIELDS],
+      missingFields: [...MANDATORY_PROFILE_FIELDS],
     };
   });
 }
@@ -590,7 +617,6 @@ export async function completeGoogleProfile(input) {
 
   const phone = requirePhone(input.phone);
   const { addressLine1, addressCity } = requireAddress(input.addressLine1, input.addressCity);
-  const { lat, lng } = requireLocation(input.lat, input.lng);
 
   return await withConnection(async (connection) => {
     await ensureGooglePendingTable(connection);
@@ -637,6 +663,8 @@ export async function completeGoogleProfile(input) {
       throw new AuthError("Unable to update profile.", 500, "PROFILE_UPDATE_FAILED");
     }
 
+    const { lat, lng } = resolveLocationPatch(input, user);
+
     await upsertCustomerProfile(connection, user.id, {
       phone,
       phoneVerifiedAt: null,
@@ -648,6 +676,45 @@ export async function completeGoogleProfile(input) {
     });
 
     await connection.query("DELETE FROM google_auth_pending WHERE pending_token = ?", [pendingToken]);
+
+    const updated = await findDbUserById(connection, user.id);
+    if (!updated) {
+      throw new AuthError("Unable to update profile.", 500, "PROFILE_UPDATE_FAILED");
+    }
+
+    return sanitizeUser(updated);
+  });
+}
+
+export async function completeCustomerProfile(input) {
+  const userId = String(input.userId || "").trim();
+  if (!userId) {
+    throw new AuthError("User not found.", 404, "USER_NOT_FOUND");
+  }
+
+  const phone = requirePhone(input.phone);
+  const { addressLine1, addressCity } = requireAddress(input.addressLine1, input.addressCity);
+
+  return await withConnection(async (connection) => {
+    const user = await findDbUserById(connection, userId);
+    if (!user) {
+      throw new AuthError("User not found.", 404, "USER_NOT_FOUND");
+    }
+
+    const phoneUnchanged = user.phone && user.phone === phone;
+    const phoneVerifiedAt =
+      phoneUnchanged && user.phoneVerifiedAt ? new Date(user.phoneVerifiedAt) : null;
+    const { lat, lng } = resolveLocationPatch(input, user);
+
+    await upsertCustomerProfile(connection, user.id, {
+      phone,
+      phoneVerifiedAt,
+      addressLine1,
+      addressCity,
+      addressPostalCode: user.addressPostalCode || null,
+      lat,
+      lng,
+    });
 
     const updated = await findDbUserById(connection, user.id);
     if (!updated) {

@@ -5,19 +5,6 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 
-type ApiError = {
-  message?: string;
-};
-
-async function readApiError(response: Response) {
-  try {
-    const payload = (await response.json()) as ApiError;
-    return payload.message || "Request failed.";
-  } catch {
-    return "Request failed.";
-  }
-}
-
 export default function SignupPage() {
   const router = useRouter();
   const defaultRole = "CUSTOMER";
@@ -44,9 +31,18 @@ export default function SignupPage() {
           role: defaultRole,
         }),
       });
+      const payload = (await response.json()) as {
+        message?: string;
+        requiresCompletion?: boolean;
+      };
 
       if (!response.ok) {
-        setError(await readApiError(response));
+        setError(payload.message || "Request failed.");
+        return;
+      }
+
+      if (payload.requiresCompletion) {
+        router.push(`/auth/complete-profile?next=${encodeURIComponent("/menu")}`);
         return;
       }
 
@@ -99,6 +95,10 @@ export default function SignupPage() {
 
       if (payload.requiresCompletion && payload.pendingToken) {
         router.push(`/auth/complete-profile?pending=${encodeURIComponent(payload.pendingToken)}&next=${encodeURIComponent("/menu")}`);
+        return;
+      }
+      if (payload.requiresCompletion) {
+        router.push(`/auth/complete-profile?next=${encodeURIComponent("/menu")}`);
         return;
       }
 

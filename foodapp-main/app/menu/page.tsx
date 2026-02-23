@@ -1,5 +1,5 @@
 import { listPublicMenuFromDb } from "@/lib/menu/drizzle-menu";
-import { MenuSections } from "./menu-sections";
+import { MenuPageClient } from "./menu-page-client";
 
 export default async function MenuPage() {
   const menu = await listPublicMenuFromDb();
@@ -11,5 +11,5 @@ export default async function MenuPage() {
     }))
     .filter((section) => section.items.length > 0);
 
-  return <MenuSections categorySections={categorySections} hasMenuItems={menu.items.length > 0} />;
+  return <MenuPageClient categorySections={categorySections} hasMenuItems={menu.items.length > 0} />;
 }

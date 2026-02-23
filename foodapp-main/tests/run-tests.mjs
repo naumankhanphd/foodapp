@@ -134,7 +134,7 @@ const cases = [
 
       const completed = await completeGoogleProfile({
         pendingToken: pending.pendingToken,
-        phone: "+15551234567",
+        phone: "+358401234567",
         addressLine1: "1 Main St",
         addressCity: "Austin",
         lat: 30.2672,

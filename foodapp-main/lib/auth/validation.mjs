@@ -2,6 +2,7 @@ import { AuthError } from "./errors.mjs";
 import { ROLE_VALUES, ROLES } from "./config.mjs";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const FINNISH_PHONE_PATTERN = /^\+358[1-9]\d{4,10}$/;
 
 export function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -32,9 +33,13 @@ export function requirePassword(password) {
 }
 
 export function requirePhone(phone) {
-  const value = String(phone || "").trim();
-  if (value.length < 7) {
-    throw new AuthError("Phone number is required.", 400, "INVALID_PHONE");
+  const value = String(phone || "").trim().replace(/[^\d+]/g, "");
+  if (!FINNISH_PHONE_PATTERN.test(value)) {
+    throw new AuthError(
+      "Phone number must be a valid Finnish number in +358 format.",
+      400,
+      "INVALID_PHONE",
+    );
   }
   return value;
 }

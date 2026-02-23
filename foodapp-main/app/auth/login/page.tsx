@@ -6,18 +6,10 @@ import { FormEvent, useMemo, useState } from "react";
 import { CHECKOUT_RESTRICTION_POLICY } from "@/lib/auth/config.mjs";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 
-type ApiError = {
+type LoginPayload = {
   message?: string;
+  requiresCompletion?: boolean;
 };
-
-async function readApiError(response: Response) {
-  try {
-    const payload = (await response.json()) as ApiError;
-    return payload.message || "Request failed.";
-  } catch {
-    return "Request failed.";
-  }
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,9 +44,15 @@ export default function LoginPage() {
           requiredRole,
         }),
       });
+      const payload = (await response.json()) as LoginPayload;
 
       if (!response.ok) {
-        setError(await readApiError(response));
+        setError(payload.message || "Request failed.");
+        return;
+      }
+
+      if (payload.requiresCompletion) {
+        router.push(`/auth/complete-profile?next=${encodeURIComponent(nextPath)}`);
         return;
       }
 
@@ -105,6 +103,10 @@ export default function LoginPage() {
 
       if (payload.requiresCompletion && payload.pendingToken) {
         router.push(`/auth/complete-profile?pending=${encodeURIComponent(payload.pendingToken)}&next=${encodeURIComponent(nextPath)}`);
+        return;
+      }
+      if (payload.requiresCompletion) {
+        router.push(`/auth/complete-profile?next=${encodeURIComponent(nextPath)}`);
         return;
       }
 

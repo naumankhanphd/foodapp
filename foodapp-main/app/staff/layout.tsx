@@ -26,12 +26,6 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
               </Link>
               <Link
                 className="rounded-lg border border-[var(--line)] bg-white px-3 py-2"
-                href="/staff/menu"
-              >
-                Menu
-              </Link>
-              <Link
-                className="rounded-lg border border-[var(--line)] bg-white px-3 py-2"
                 href="/staff/offers"
               >
                 Offers

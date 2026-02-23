@@ -14,6 +14,14 @@ export function hasRequiredRole(role, requiredRoles) {
   return Array.isArray(requiredRoles) && requiredRoles.includes(role);
 }
 
+function hasMandatoryProfile(session) {
+  return (
+    Boolean(session?.phone) &&
+    Boolean(session?.addressLine1) &&
+    Boolean(session?.addressCity)
+  );
+}
+
 export function evaluateAccessPolicy(pathname, session) {
   if (pathname.startsWith("/staff/login")) {
     return { allowed: true };
@@ -46,6 +54,15 @@ export function evaluateAccessPolicy(pathname, session) {
 
     if (!isCustomerRole(session.role)) {
       return { allowed: false, type: "json", status: 403, reason: "ROLE_FORBIDDEN" };
+    }
+
+    if (!hasMandatoryProfile(session)) {
+      return {
+        allowed: false,
+        type: "json",
+        status: 403,
+        reason: "PROFILE_COMPLETION_REQUIRED",
+      };
     }
 
     if (!session.phoneVerified) {
@@ -86,6 +103,15 @@ export function evaluateAccessPolicy(pathname, session) {
         type: "redirect",
         redirectTo: "/auth/login?error=customer_role_required",
         reason: "ROLE_FORBIDDEN",
+      };
+    }
+
+    if (!hasMandatoryProfile(session)) {
+      return {
+        allowed: false,
+        type: "redirect",
+        redirectTo: `/auth/complete-profile?next=${encodeURIComponent(pathname)}`,
+        reason: "PROFILE_COMPLETION_REQUIRED",
       };
     }
 

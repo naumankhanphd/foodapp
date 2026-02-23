@@ -91,6 +91,8 @@ type MenuSectionsProps = {
 
   adminMode?: boolean;
 
+  adminUseCustomerCards?: boolean;
+
   onAdminEditItem?: (itemId: string) => void | Promise<void>;
 
 };
@@ -266,11 +268,25 @@ function PriceBadge({
 function PriceText({
   prices,
   className,
+  showSlashPair = false,
 }: {
   prices: { largePrice: number; familyPrice: number | null };
   className?: string;
+  showSlashPair?: boolean;
 }) {
   const view = toPriceBadgeView(prices);
+
+  if (showSlashPair) {
+    const slashText = prices.familyPrice === null
+      ? `€${formatEuro(prices.largePrice)}`
+      : `€${formatEuro(prices.largePrice)} / €${formatEuro(prices.familyPrice)}`;
+
+    return (
+      <div className={`leading-tight text-[#1f1f1f] ${className ?? ""}`}>
+        <p className="whitespace-nowrap text-[0.95rem] font-black">{slashText}</p>
+      </div>
+    );
+  }
 
   return (
     <div className={`leading-tight text-[#1f1f1f] ${className ?? ""}`}>
@@ -333,6 +349,8 @@ export function MenuSections({
   embedded = false,
 
   adminMode = false,
+
+  adminUseCustomerCards = false,
 
   onAdminEditItem,
 
@@ -646,6 +664,8 @@ export function MenuSections({
 
   );
 
+  const useAdminCompactCards = adminMode && !adminUseCustomerCards;
+
 
 
   const sectionsContent = (
@@ -688,7 +708,7 @@ export function MenuSections({
 
 
 
-          <div className={adminMode ? "grid gap-3" : "grid gap-3 md:grid-cols-3"}>
+          <div className={useAdminCompactCards ? "grid gap-3" : "grid gap-3 md:grid-cols-3 md:[grid-auto-rows:1fr]"}>
             {section.items.map((item) => {
               const prices = resolveDisplayedPrices(item);
               const isKebabItem = item.categoryName.toLowerCase() === "kebabit";
@@ -697,7 +717,7 @@ export function MenuSections({
               const quantity = quantityByItemId.get(item.id) || 0;
 
 
-              if (adminMode) {
+              if (useAdminCompactCards) {
 
                 return (
 
@@ -791,9 +811,9 @@ export function MenuSections({
                           {item.name}
                         </h2>
 
-                        {showDescription ? (
-                          <p className="mt-1 line-clamp-2 text-sm leading-snug text-[#8a470f]">{item.description}</p>
-                        ) : null}
+                        <p className="mt-1 min-h-[2.5rem] overflow-hidden text-sm leading-snug text-[#8a470f] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                          {showDescription ? item.description : "\u00A0"}
+                        </p>
 
 
                         <div className="mt-2 flex items-center justify-between gap-2">
@@ -934,13 +954,39 @@ export function MenuSections({
                             {item.name}
                           </h2>
 
-                          {showDescription ? (
-                            <p className="line-clamp-2 text-sm leading-snug text-[#8a470f]">{item.description}</p>
-                          ) : null}
+                          <p className="min-h-[2.5rem] overflow-hidden text-sm leading-snug text-[#8a470f] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                            {showDescription ? item.description : "\u00A0"}
+                          </p>
 
                           <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-                            <PriceText prices={prices} className="self-end" />
-                            {quantity > 0 ? (
+                            <PriceText prices={prices} className="self-end" showSlashPair={adminMode} />
+                            {adminMode ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  void onAdminEditItem?.(item.id);
+                                }}
+                                aria-label={`Edit ${item.name}`}
+                                className="relative z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={!onAdminEditItem}
+                              >
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  className="h-5 w-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M12 20h9" />
+                                  <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L8 18l-4 1 1-4 11.5-11.5z" />
+                                </svg>
+                              </button>
+                            ) : quantity > 0 ? (
                               <div className="relative z-20 inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-white px-1 py-1">
                                 <button
                                   type="button"
@@ -993,14 +1039,14 @@ export function MenuSections({
                       </div>
                     </div>
 
-                    <div className={`${isAvailable ? "" : "grayscale"} hidden md:block`}>
-                      <h2 className="min-h-[3.4rem] line-clamp-2 text-[1.4rem] font-extrabold leading-tight text-[#1f1f1f]">
+                    <div className={`${isAvailable ? "" : "grayscale"} hidden h-full md:grid md:grid-rows-[3.2rem_auto_3.1rem_auto]`}>
+                      <h2 className="overflow-hidden text-[1.35rem] font-extrabold leading-tight text-[#1f1f1f] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                         {item.name}
                       </h2>
 
-                      <div className="mt-3 overflow-hidden rounded-xl border-2 border-[#2d1d13] bg-[#fff7ea]">
+                      <div className="mt-2 overflow-hidden rounded-xl border-2 border-[#2d1d13] bg-[#fff7ea]">
                         {item.imageUrls[0] ? (
-                                                    <img src={item.imageUrls[0]} alt={item.name} className="aspect-[4/3] w-full object-cover" />
+                          <img src={item.imageUrls[0]} alt={item.name} className="aspect-[4/3] w-full object-cover" />
                         ) : (
                           <div className="flex aspect-[4/3] w-full items-center justify-center text-sm text-[#8a470f]">
                             No image
@@ -1008,18 +1054,42 @@ export function MenuSections({
                         )}
                       </div>
 
-                      {showDescription ? (
-                        <p className="mt-1 min-h-[3.8rem] line-clamp-2 text-[1.1rem] leading-snug text-[#8a470f]">
-                          {item.description}
-                        </p>
-                      ) : null}
+                      <p className="mt-1 overflow-hidden text-[1.1rem] leading-snug text-[#8a470f] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                        {showDescription ? item.description : "\u00A0"}
+                      </p>
 
-                      <div className="mt-auto flex items-center justify-between gap-2 pt-4">
-                        <PriceText prices={prices} className="self-end" />
+                      <div className="flex items-center justify-between gap-2 pt-3">
+                        <PriceText prices={prices} className="self-end" showSlashPair={adminMode} />
 
-                        {quantity > 0 ? (
-                          <div className="relative z-20 inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white px-1 py-1">
-                            <button
+                            {adminMode ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  void onAdminEditItem?.(item.id);
+                                }}
+                                aria-label={`Edit ${item.name}`}
+                                className="relative z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={!onAdminEditItem}
+                              >
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  className="h-5 w-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M12 20h9" />
+                                  <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L8 18l-4 1 1-4 11.5-11.5z" />
+                                </svg>
+                              </button>
+                            ) : quantity > 0 ? (
+                              <div className="relative z-20 inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white px-1 py-1">
+                                <button
                               type="button"
                               onClick={() => void mutateItemCount(item, "dec")}
                               disabled={!isCartReady || !isAvailable}
