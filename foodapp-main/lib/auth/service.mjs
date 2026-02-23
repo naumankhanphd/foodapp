@@ -18,7 +18,8 @@ import {
   parseSignupRole,
   requireAddress,
   requireEmail,
-  requireFullName,
+  requireFirstName,
+  requireLastName,
   requireLocation,
   requirePassword,
   requirePhone,
@@ -26,7 +27,7 @@ import {
   requireResetToken,
 } from "./validation.mjs";
 
-const MANDATORY_PROFILE_FIELDS = ["phone", "addressLine1", "addressCity"];
+const MANDATORY_PROFILE_FIELDS = ["firstName", "lastName", "phone", "addressLine1", "addressCity"];
 const DB_CACHE_KEY = "__FOODAPP_AUTH_DB_POOL__";
 
 function requireDatabaseUrl() {
@@ -77,7 +78,10 @@ async function ensureGooglePendingTable(connection) {
     CREATE TABLE IF NOT EXISTS google_auth_pending (
       pending_token VARCHAR(191) NOT NULL,
       email VARCHAR(191) NOT NULL,
-      full_name VARCHAR(191) NOT NULL,
+      first_name VARCHAR(191) NULL,
+      last_name VARCHAR(191) NULL,
+      full_name VARCHAR(191) NULL,
+      password_hash VARCHAR(255) NULL,
       role_key ENUM('CUSTOMER', 'ADMIN') NOT NULL DEFAULT 'CUSTOMER',
       existing_user_id BIGINT UNSIGNED NULL,
       expires_at DATETIME(3) NOT NULL,
@@ -87,6 +91,30 @@ async function ensureGooglePendingTable(connection) {
       KEY idx_google_auth_pending_email (email)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  if (!(await hasColumn(connection, "google_auth_pending", "first_name"))) {
+    await connection.query(
+      "ALTER TABLE google_auth_pending ADD COLUMN first_name VARCHAR(191) NULL AFTER email",
+    );
+  }
+
+  if (!(await hasColumn(connection, "google_auth_pending", "last_name"))) {
+    await connection.query(
+      "ALTER TABLE google_auth_pending ADD COLUMN last_name VARCHAR(191) NULL AFTER first_name",
+    );
+  }
+
+  if (!(await hasColumn(connection, "google_auth_pending", "full_name"))) {
+    await connection.query(
+      "ALTER TABLE google_auth_pending ADD COLUMN full_name VARCHAR(191) NULL AFTER last_name",
+    );
+  }
+
+  if (!(await hasColumn(connection, "google_auth_pending", "password_hash"))) {
+    await connection.query(
+      "ALTER TABLE google_auth_pending ADD COLUMN password_hash VARCHAR(255) NULL AFTER full_name",
+    );
+  }
 }
 
 async function ensureRoleCatalog(connection) {
@@ -153,6 +181,78 @@ function toNumberOrNull(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeNamePart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function splitFullName(fullName) {
+  const normalized = normalizeNamePart(fullName);
+  if (!normalized) {
+    return { firstName: "", lastName: "" };
+  }
+
+  const [firstName, ...rest] = normalized.split(" ");
+  return {
+    firstName: firstName || "",
+    lastName: rest.join(" ").trim(),
+  };
+}
+
+function buildFullName(firstName, lastName) {
+  return `${normalizeNamePart(firstName)} ${normalizeNamePart(lastName)}`.trim();
+}
+
+function resolveNames(input = {}, fallback = {}) {
+  const firstNameInput = normalizeNamePart(input.firstName);
+  const lastNameInput = normalizeNamePart(input.lastName);
+  const fullNameInput = normalizeNamePart(input.fullName);
+
+  const fallbackFirstName = normalizeNamePart(fallback.firstName);
+  const fallbackLastName = normalizeNamePart(fallback.lastName);
+  const fallbackFullName = normalizeNamePart(fallback.fullName);
+
+  const sourceFullName = fullNameInput || fallbackFullName;
+  const splitSource = splitFullName(sourceFullName);
+
+  const firstName = firstNameInput || fallbackFirstName || splitSource.firstName;
+  const lastName = lastNameInput || fallbackLastName || splitSource.lastName;
+  const fullName = buildFullName(firstName, lastName) || sourceFullName;
+
+  return {
+    firstName,
+    lastName,
+    fullName,
+  };
+}
+
+function requireProfileNames(input = {}, fallback = {}) {
+  const resolved = resolveNames(input, fallback);
+  const firstName = requireFirstName(resolved.firstName);
+  const lastName = requireLastName(resolved.lastName);
+
+  return {
+    firstName,
+    lastName,
+    fullName: buildFullName(firstName, lastName),
+  };
+}
+
+async function getUsersNameColumns(connection) {
+  const [hasFirstName, hasLastName, hasFullName] = await Promise.all([
+    hasColumn(connection, "users", "first_name"),
+    hasColumn(connection, "users", "last_name"),
+    hasColumn(connection, "users", "full_name"),
+  ]);
+
+  return {
+    hasFirstName,
+    hasLastName,
+    hasFullName,
+  };
+}
+
 function normalizeDbUser(row) {
   if (!row) {
     return null;
@@ -160,11 +260,18 @@ function normalizeDbUser(row) {
 
   const roleRaw = String(row.role_key || "CUSTOMER").toUpperCase();
   const role = roleRaw === ROLES.ADMIN ? ROLES.ADMIN : ROLES.CUSTOMER;
+  const resolvedNames = resolveNames({
+    firstName: row.first_name,
+    lastName: row.last_name,
+    fullName: row.full_name,
+  });
 
   return {
     id: String(row.id),
     email: normalizeEmail(row.email),
-    fullName: String(row.full_name || ""),
+    firstName: resolvedNames.firstName,
+    lastName: resolvedNames.lastName,
+    fullName: resolvedNames.fullName,
     role,
     provider: row.password_hash ? "password" : "google",
     passwordHash: row.password_hash || null,
@@ -186,11 +293,7 @@ async function findDbUserByEmail(connection, email) {
     const [rows] = await connection.query(
       `
         SELECT
-          u.id,
-          u.email,
-          u.password_hash,
-          u.full_name,
-          u.created_at,
+          u.*,
           ur.role_key,
           cp.phone,
           cp.phone_verified_at,
@@ -214,11 +317,7 @@ async function findDbUserByEmail(connection, email) {
   const [rows] = await connection.query(
     `
       SELECT
-        u.id,
-        u.email,
-        u.password_hash,
-        u.full_name,
-        u.created_at,
+        u.*,
         (
           SELECT CASE
             WHEN SUM(CASE WHEN role = 'ADMIN' THEN 1 ELSE 0 END) > 0 THEN 'ADMIN'
@@ -252,11 +351,7 @@ async function findDbUserById(connection, userId) {
     const [rows] = await connection.query(
       `
         SELECT
-          u.id,
-          u.email,
-          u.password_hash,
-          u.full_name,
-          u.created_at,
+          u.*,
           ur.role_key,
           cp.phone,
           cp.phone_verified_at,
@@ -280,11 +375,7 @@ async function findDbUserById(connection, userId) {
   const [rows] = await connection.query(
     `
       SELECT
-        u.id,
-        u.email,
-        u.password_hash,
-        u.full_name,
-        u.created_at,
+        u.*,
         (
           SELECT CASE
             WHEN SUM(CASE WHEN role = 'ADMIN' THEN 1 ELSE 0 END) > 0 THEN 'ADMIN'
@@ -331,8 +422,10 @@ async function assignRoleForUser(connection, userId, email) {
   await connection.query("INSERT INTO user_roles (user_id, role) VALUES (?, ?)", [Number(userId), targetRole]);
 }
 
-async function createDbUser(connection, { email, fullName, passwordHash }) {
+async function createDbUser(connection, { email, firstName, lastName, fullName, passwordHash }) {
   const hasRoleId = await hasColumn(connection, "users", "role_id");
+  const { hasFirstName, hasLastName, hasFullName } = await getUsersNameColumns(connection);
+  const resolvedNames = resolveNames({ firstName, lastName, fullName });
   let roleId = null;
 
   if (hasRoleId) {
@@ -344,37 +437,74 @@ async function createDbUser(connection, { email, fullName, passwordHash }) {
     roleId = roleFromEmail(email) === ROLES.ADMIN ? roleCatalog.adminRoleId : roleCatalog.customerRoleId;
   }
 
+  const columns = ["email", "password_hash"];
+  const values = [email, passwordHash];
+  const placeholders = ["?", "?"];
+
+  if (hasFirstName) {
+    columns.push("first_name");
+    values.push(resolvedNames.firstName || null);
+    placeholders.push("?");
+  }
+
+  if (hasLastName) {
+    columns.push("last_name");
+    values.push(resolvedNames.lastName || null);
+    placeholders.push("?");
+  }
+
+  if (hasFullName) {
+    columns.push("full_name");
+    values.push(resolvedNames.fullName || null);
+    placeholders.push("?");
+  }
+
   if (hasRoleId) {
-    const [result] = await connection.query(
-      `
-        INSERT INTO users (email, password_hash, full_name, role_id)
-        VALUES (?, ?, ?, ?)
-      `,
-      [email, passwordHash, fullName, roleId],
-    );
-    return String(result.insertId);
+    columns.push("role_id");
+    values.push(roleId);
+    placeholders.push("?");
   }
 
   const [result] = await connection.query(
     `
-      INSERT INTO users (email, password_hash, full_name)
-      VALUES (?, ?, ?)
+      INSERT INTO users (${columns.join(", ")})
+      VALUES (${placeholders.join(", ")})
     `,
-    [email, passwordHash, fullName],
+    values,
   );
 
   const userId = String(result.insertId);
-  await assignRoleForUser(connection, userId, email);
+  if (!hasRoleId) {
+    await assignRoleForUser(connection, userId, email);
+  }
   return userId;
 }
 
 async function updateDbUser(connection, userId, patch) {
   const sets = [];
   const params = [];
+  const { hasFirstName, hasLastName, hasFullName } = await getUsersNameColumns(connection);
 
-  if (Object.prototype.hasOwnProperty.call(patch, "fullName")) {
+  if (hasFirstName && Object.prototype.hasOwnProperty.call(patch, "firstName")) {
+    sets.push("first_name = ?");
+    params.push(normalizeNamePart(patch.firstName) || null);
+  }
+
+  if (hasLastName && Object.prototype.hasOwnProperty.call(patch, "lastName")) {
+    sets.push("last_name = ?");
+    params.push(normalizeNamePart(patch.lastName) || null);
+  }
+
+  if (hasFullName && Object.prototype.hasOwnProperty.call(patch, "fullName")) {
     sets.push("full_name = ?");
-    params.push(patch.fullName);
+    params.push(normalizeNamePart(patch.fullName) || null);
+  } else if (
+    hasFullName &&
+    Object.prototype.hasOwnProperty.call(patch, "firstName") &&
+    Object.prototype.hasOwnProperty.call(patch, "lastName")
+  ) {
+    sets.push("full_name = ?");
+    params.push(buildFullName(patch.firstName, patch.lastName) || null);
   }
 
   if (Object.prototype.hasOwnProperty.call(patch, "passwordHash")) {
@@ -441,6 +571,12 @@ export function getMissingMandatoryProfileFields(userLike) {
   const user = userLike || {};
   const missing = [];
 
+  if (!user.firstName) {
+    missing.push("firstName");
+  }
+  if (!user.lastName) {
+    missing.push("lastName");
+  }
   if (!user.phone) {
     missing.push("phone");
   }
@@ -478,6 +614,8 @@ export function sanitizeUser(user) {
   return {
     id: String(user.id),
     email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
     fullName: user.fullName,
     role: user.role,
     provider: user.provider,
@@ -508,7 +646,11 @@ function assertRoleCompatibility(userRole, requiredRole) {
 
 export async function registerWithPassword(input) {
   const email = requireEmail(input.email);
-  const fullName = requireFullName(input.fullName);
+  const resolvedNames = resolveNames({
+    firstName: input.firstName,
+    lastName: input.lastName,
+    fullName: input.fullName,
+  });
   const password = requirePassword(input.password);
   parseSignupRole(input.role);
 
@@ -520,7 +662,9 @@ export async function registerWithPassword(input) {
 
     const userId = await createDbUser(connection, {
       email,
-      fullName,
+      firstName: resolvedNames.firstName,
+      lastName: resolvedNames.lastName,
+      fullName: resolvedNames.fullName,
       passwordHash: hashPassword(password),
     });
 
@@ -549,9 +693,77 @@ export async function loginWithPassword(input) {
   });
 }
 
+export async function beginPasswordSignup(input) {
+  const email = requireEmail(input.email);
+  const password = requirePassword(input.password);
+  parseSignupRole(input.role);
+
+  return await withConnection(async (connection) => {
+    await ensureGooglePendingTable(connection);
+    const existing = await findDbUserByEmail(connection, email);
+    if (existing) {
+      throw new AuthError("Email already exists.", 409, "EMAIL_EXISTS");
+    }
+
+    await connection.query(
+      "DELETE FROM google_auth_pending WHERE email = ? AND existing_user_id IS NULL",
+      [email],
+    );
+
+    const pendingToken = randomToken();
+    const expiresAt = new Date(nowMs() + GOOGLE_PENDING_TTL_MS);
+
+    await connection.query(
+      `
+        INSERT INTO google_auth_pending (
+          pending_token,
+          email,
+          first_name,
+          last_name,
+          full_name,
+          password_hash,
+          role_key,
+          existing_user_id,
+          expires_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        pendingToken,
+        email,
+        null,
+        null,
+        "",
+        hashPassword(password),
+        ROLES.CUSTOMER,
+        null,
+        expiresAt,
+      ],
+    );
+
+    return {
+      requiresCompletion: true,
+      pendingToken,
+      missingFields: [...MANDATORY_PROFILE_FIELDS],
+    };
+  });
+}
+
 export async function beginGoogleAuth(input) {
   const email = requireEmail(input.email);
-  const fullName = requireFullName(input.fullName || "Google User");
+  const fallbackNameFromEmail = email
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .trim();
+  const resolvedNames = resolveNames(
+    {
+      firstName: input.firstName,
+      lastName: input.lastName,
+      fullName: input.fullName,
+    },
+    {
+      fullName: fallbackNameFromEmail || "Google User",
+    },
+  );
   const requiredRole = parseRequiredRole(input.requiredRole || input.role);
 
   return await withConnection(async (connection) => {
@@ -585,16 +797,22 @@ export async function beginGoogleAuth(input) {
         INSERT INTO google_auth_pending (
           pending_token,
           email,
+          first_name,
+          last_name,
           full_name,
+          password_hash,
           role_key,
           existing_user_id,
           expires_at
-        ) VALUES (?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         pendingToken,
         email,
-        fullName,
+        resolvedNames.firstName || null,
+        resolvedNames.lastName || null,
+        resolvedNames.fullName || null,
+        null,
         existing?.role === ROLES.ADMIN ? ROLES.ADMIN : ROLES.CUSTOMER,
         existing ? Number(existing.id) : null,
         expiresAt,
@@ -623,7 +841,7 @@ export async function completeGoogleProfile(input) {
 
     const [rows] = await connection.query(
       `
-        SELECT pending_token, email, full_name, role_key, existing_user_id, expires_at
+        SELECT pending_token, email, first_name, last_name, full_name, password_hash, role_key, existing_user_id, expires_at
         FROM google_auth_pending
         WHERE pending_token = ?
         LIMIT 1
@@ -633,29 +851,49 @@ export async function completeGoogleProfile(input) {
 
     const pending = rows[0];
     if (!pending) {
-      throw new AuthError("Google session expired. Please sign in again.", 400, "PENDING_TOKEN_INVALID");
+      throw new AuthError("Session expired. Please sign in again.", 400, "PENDING_TOKEN_INVALID");
     }
 
     const expiresAt = new Date(pending.expires_at).getTime();
     if (!Number.isFinite(expiresAt) || expiresAt < nowMs()) {
       await connection.query("DELETE FROM google_auth_pending WHERE pending_token = ?", [pendingToken]);
-      throw new AuthError("Google session expired. Please sign in again.", 400, "PENDING_TOKEN_INVALID");
+      throw new AuthError("Session expired. Please sign in again.", 400, "PENDING_TOKEN_INVALID");
     }
 
     let user = pending.existing_user_id
       ? await findDbUserById(connection, pending.existing_user_id)
       : await findDbUserByEmail(connection, pending.email);
+    const resolvedNames = requireProfileNames(
+      {
+        firstName: input.firstName,
+        lastName: input.lastName,
+      },
+      {
+        firstName: pending.first_name,
+        lastName: pending.last_name,
+        fullName: pending.full_name,
+      },
+    );
 
     if (!user) {
       const newUserId = await createDbUser(connection, {
         email: pending.email,
-        fullName: pending.full_name,
-        passwordHash: null,
+        firstName: resolvedNames.firstName,
+        lastName: resolvedNames.lastName,
+        fullName: resolvedNames.fullName,
+        passwordHash: pending.password_hash || null,
       });
       user = await findDbUserById(connection, newUserId);
     } else {
+      if (pending.password_hash && !user.passwordHash) {
+        await updateDbUser(connection, user.id, {
+          passwordHash: pending.password_hash,
+        });
+      }
       await updateDbUser(connection, user.id, {
-        fullName: pending.full_name,
+        firstName: resolvedNames.firstName,
+        lastName: resolvedNames.lastName,
+        fullName: resolvedNames.fullName,
       });
     }
 
@@ -700,6 +938,22 @@ export async function completeCustomerProfile(input) {
     if (!user) {
       throw new AuthError("User not found.", 404, "USER_NOT_FOUND");
     }
+    const resolvedNames = requireProfileNames(
+      {
+        firstName: input.firstName,
+        lastName: input.lastName,
+      },
+      {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        fullName: user.fullName,
+      },
+    );
+    await updateDbUser(connection, user.id, {
+      firstName: resolvedNames.firstName,
+      lastName: resolvedNames.lastName,
+      fullName: resolvedNames.fullName,
+    });
 
     const phoneUnchanged = user.phone && user.phone === phone;
     const phoneVerifiedAt =
@@ -732,6 +986,8 @@ export function createSessionTokenForUser(userLike) {
     sub: String(effectiveUser.id),
     role: effectiveUser.role,
     email: effectiveUser.email,
+    firstName: effectiveUser.firstName,
+    lastName: effectiveUser.lastName,
     fullName: effectiveUser.fullName,
     provider: effectiveUser.provider,
     phone: effectiveUser.phone,
@@ -763,6 +1019,8 @@ export function readSessionFromToken(token) {
   const user = {
     id: String(claims.sub),
     email,
+    firstName: normalizeNamePart(claims.firstName || ""),
+    lastName: normalizeNamePart(claims.lastName || ""),
     fullName: String(claims.fullName || ""),
     role,
     provider: String(claims.provider || "password"),
@@ -774,6 +1032,18 @@ export function readSessionFromToken(token) {
     phoneVerified: Boolean(claims.phoneVerified),
     createdAt: claims.createdAt || null,
   };
+
+  const resolvedNames = resolveNames(
+    {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      fullName: user.fullName,
+    },
+    {},
+  );
+  user.firstName = resolvedNames.firstName;
+  user.lastName = resolvedNames.lastName;
+  user.fullName = resolvedNames.fullName;
 
   return {
     claims,

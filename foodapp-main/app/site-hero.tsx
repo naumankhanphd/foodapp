@@ -14,10 +14,28 @@ const navItems = [
 ];
 const neutralNavItems = navItems.filter((item) => item.key !== "home" && item.key !== "cart");
 
+function inferNamesFromEmail(emailValue: string) {
+  const localPart = emailValue
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .trim();
+  if (!localPart) {
+    return { firstName: "Google", lastName: "" };
+  }
+
+  const parts = localPart.split(/\s+/);
+  return {
+    firstName: parts[0] || "Google",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
 type SessionUser = {
   id: string;
   email: string;
-  fullName: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
   role: "CUSTOMER" | "ADMIN";
 };
 
@@ -32,6 +50,7 @@ type AuthPayload = {
 
 export function SiteHero() {
   const pathname = usePathname();
+  const hideChrome = pathname?.startsWith("/auth/complete-profile");
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null | undefined>(undefined);
   const [logoutPending, setLogoutPending] = useState(false);
@@ -44,7 +63,6 @@ export function SiteHero() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
-  const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
 
@@ -69,7 +87,7 @@ export function SiteHero() {
     ];
   }, [user]);
 
-  const accountDisplayName = (user?.fullName || user?.email || "").trim();
+  const accountDisplayName = (`${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.fullName || user?.email || "").trim();
   const accountInitial = (accountDisplayName.charAt(0) || "U").toUpperCase();
   const accountTriggerLabel = user?.role === "ADMIN" ? "Admin" : "Account";
 
@@ -165,15 +183,19 @@ export function SiteHero() {
     router.refresh();
   }
 
-  function completeProfileFlow(pendingToken?: string) {
+  function completeProfileFlow(pendingToken?: string, emailHint?: string) {
     setAuthView(null);
     setAuthError("");
-    const nextParam = encodeURIComponent(postAuthPath);
+    const query = new URLSearchParams({
+      next: postAuthPath,
+    });
     if (pendingToken) {
-      router.push(`/auth/complete-profile?pending=${encodeURIComponent(pendingToken)}&next=${nextParam}`);
-      return;
+      query.set("pending", pendingToken);
     }
-    router.push(`/auth/complete-profile?next=${nextParam}`);
+    if (emailHint) {
+      query.set("email", emailHint);
+    }
+    router.push(`/auth/complete-profile?${query.toString()}`);
   }
 
   async function handlePasswordLogin(event: FormEvent<HTMLFormElement>) {
@@ -182,11 +204,12 @@ export function SiteHero() {
     setAuthError("");
 
     try {
+      const normalizedEmail = loginEmail.trim().toLowerCase();
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: loginEmail.trim().toLowerCase(),
+          email: normalizedEmail,
           password: loginPassword,
           requiredRole: "CUSTOMER",
         }),
@@ -199,7 +222,7 @@ export function SiteHero() {
       }
 
       if (payload.requiresCompletion) {
-        completeProfileFlow(payload.pendingToken);
+        completeProfileFlow(payload.pendingToken, normalizedEmail);
         return;
       }
 
@@ -221,14 +244,14 @@ export function SiteHero() {
         setAuthError("Please enter your email first.");
         return;
       }
-
-      const inferredName = normalizedEmail.split("@")[0].replace(/[._-]+/g, " ").trim();
+      const inferredNames = inferNamesFromEmail(normalizedEmail);
       const response = await fetch("/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: normalizedEmail,
-          fullName: inferredName.length >= 2 ? inferredName : "Google User",
+          firstName: inferredNames.firstName,
+          lastName: inferredNames.lastName,
           requiredRole: "CUSTOMER",
         }),
       });
@@ -240,7 +263,7 @@ export function SiteHero() {
       }
 
       if (payload.requiresCompletion) {
-        completeProfileFlow(payload.pendingToken);
+        completeProfileFlow(payload.pendingToken, normalizedEmail);
         return;
       }
 
@@ -258,12 +281,12 @@ export function SiteHero() {
     setAuthError("");
 
     try {
+      const normalizedEmail = signupEmail.trim().toLowerCase();
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fullName: signupName,
-          email: signupEmail.trim().toLowerCase(),
+          email: normalizedEmail,
           password: signupPassword,
           role: "CUSTOMER",
         }),
@@ -276,7 +299,7 @@ export function SiteHero() {
       }
 
       if (payload.requiresCompletion) {
-        completeProfileFlow(payload.pendingToken);
+        completeProfileFlow(payload.pendingToken, normalizedEmail);
         return;
       }
 
@@ -298,15 +321,14 @@ export function SiteHero() {
         setAuthError("Please enter your email first.");
         return;
       }
-
-      const fallbackNameFromEmail = normalizedEmail.split("@")[0].replace(/[._-]+/g, " ").trim();
-      const resolvedName = signupName.trim() || fallbackNameFromEmail || "Google User";
+      const inferredNames = inferNamesFromEmail(normalizedEmail);
       const response = await fetch("/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: normalizedEmail,
-          fullName: resolvedName.length >= 2 ? resolvedName : "Google User",
+          firstName: inferredNames.firstName,
+          lastName: inferredNames.lastName,
           role: "CUSTOMER",
         }),
       });
@@ -318,7 +340,7 @@ export function SiteHero() {
       }
 
       if (payload.requiresCompletion) {
-        completeProfileFlow(payload.pendingToken);
+        completeProfileFlow(payload.pendingToken, normalizedEmail);
         return;
       }
 
@@ -345,6 +367,10 @@ export function SiteHero() {
       router.push("/");
       router.refresh();
     }
+  }
+
+  if (hideChrome) {
+    return null;
   }
 
   return (
@@ -493,31 +519,21 @@ export function SiteHero() {
 
       {isClient && authView
         ? createPortal(
-            <div className="fixed inset-0 z-[100] p-4">
+            <div className="fixed inset-0 z-[100] p-0 sm:p-4">
               <button
                 type="button"
                 className="absolute inset-0 bg-black/70"
                 onClick={closeAuthModal}
                 aria-label="Close authentication dialog"
               />
-              <div className="relative z-10 flex min-h-full items-center justify-center">
+              <div className="pointer-events-none relative z-10 flex min-h-full items-end sm:items-center sm:justify-center">
                 <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="auth-dialog-title"
-            className="relative w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[22px] border-[3px] border-[#2d1d13] bg-[linear-gradient(155deg,#fff4dd_0%,#f9ecd4_60%,#e7f6ef_100%)] p-5 shadow-[6px_6px_0_0_#2d1d13] sm:p-6"
+            className="gt-auth-sheet pointer-events-auto relative w-full max-h-[92vh] overflow-y-auto rounded-t-[24px] border-x-[3px] border-t-[3px] border-[#2d1d13] bg-[linear-gradient(155deg,#fff4dd_0%,#f9ecd4_60%,#e7f6ef_100%)] p-5 pb-7 shadow-[0_-14px_28px_rgba(0,0,0,0.4)] sm:max-h-[calc(100vh-2rem)] sm:max-w-md sm:rounded-[22px] sm:border-[3px] sm:p-6 sm:shadow-[6px_6px_0_0_#2d1d13]"
           >
-            <button
-              type="button"
-              onClick={closeAuthModal}
-              disabled={authPending}
-              className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#2d1d13] bg-white text-sm font-bold text-[#2d1d13] disabled:opacity-50"
-              aria-label="Close"
-            >
-              X
-            </button>
-
-            <div className="mb-4 mt-1 grid grid-cols-2 rounded-xl border-2 border-[#2d1d13] bg-[#fff9ef] p-1">
+            <div className="mb-4 mt-1 grid grid-cols-2 gap-1 rounded-xl border-2 border-[#2d1d13] bg-[#fff9ef] p-1">
               <button
                 type="button"
                 onClick={() => openAuthModal("login")}
@@ -545,7 +561,6 @@ export function SiteHero() {
                 <h2 id="auth-dialog-title" className="text-3xl font-black leading-tight text-[#1f1f1f]">
                   Log in
                 </h2>
-                <p className="mt-1 text-sm text-[#644b33]">Sign in without leaving this page.</p>
 
                 <GoogleAuthButton
                   type="button"
@@ -605,7 +620,6 @@ export function SiteHero() {
                 <h2 id="auth-dialog-title" className="text-3xl font-black leading-tight text-[#1f1f1f]">
                   Create account
                 </h2>
-                <p className="mt-1 text-sm text-[#644b33]">Sign up without leaving this page.</p>
 
                 <GoogleAuthButton
                   type="button"
@@ -621,17 +635,6 @@ export function SiteHero() {
                 </div>
 
                 <form className="grid gap-3" onSubmit={handleSignup}>
-                  <label className="grid gap-1">
-                    <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#4f3f2e]">Full Name</span>
-                    <input
-                      className="rounded-xl border-2 border-[#2d1d13] bg-[#fffdf8] px-3 py-2.5 text-sm text-[#1d2b57] placeholder:text-[#8f8579]"
-                      type="text"
-                      placeholder="Your name"
-                      value={signupName}
-                      onChange={(event) => setSignupName(event.target.value)}
-                      required
-                    />
-                  </label>
                   <label className="grid gap-1">
                     <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#4f3f2e]">Email</span>
                     <input

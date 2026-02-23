@@ -288,6 +288,14 @@ function PriceText({
     );
   }
 
+  if (prices.familyPrice !== null) {
+    return (
+      <div className={`leading-tight text-[#1f1f1f] ${className ?? ""}`}>
+        <p className="text-[0.92rem] font-black text-[#1f1f1f]">Price from €{formatEuro(prices.largePrice)}</p>
+      </div>
+    );
+  }
+
   return (
     <div className={`leading-tight text-[#1f1f1f] ${className ?? ""}`}>
       <p className="text-[0.95rem] font-black">{view.primary}</p>
@@ -680,7 +688,7 @@ export function MenuSections({
 
           id={section.anchor}
 
-          className={`scroll-mt-32 grid gap-4 ${index === 0 ? "pt-4 sm:pt-6" : "pt-12 sm:pt-16"}`}
+          className={`scroll-mt-32 grid gap-4 ${index === 0 ? "pt-3 sm:pt-5" : "pt-7 sm:pt-9"}`}
 
         >
 
@@ -708,7 +716,13 @@ export function MenuSections({
 
 
 
-          <div className={useAdminCompactCards ? "grid gap-3" : "grid gap-3 md:grid-cols-3 md:[grid-auto-rows:1fr]"}>
+          <div
+            className={
+              useAdminCompactCards
+                ? "grid gap-3"
+                : "grid gap-3 md:[grid-template-columns:repeat(auto-fill,minmax(min(100%,430px),1fr))] md:[grid-auto-rows:1fr]"
+            }
+          >
             {section.items.map((item) => {
               const prices = resolveDisplayedPrices(item);
               const isKebabItem = item.categoryName.toLowerCase() === "kebabit";
@@ -755,7 +769,7 @@ export function MenuSections({
 
                     <div className="flex w-full items-start gap-3">
 
-                      <div className="relative overflow-hidden rounded-lg border-2 border-[#2d1d13] bg-[#fff7ea]">
+                      <div className="order-2 relative h-[148px] w-[184px] shrink-0 overflow-hidden rounded-lg border-2 border-[#2d1d13] bg-[#fff7ea]">
 
                         {item.imageUrls[0] ? (
 
@@ -766,7 +780,7 @@ export function MenuSections({
 
                             alt={item.name}
 
-                            className={`h-24 w-28 object-cover ${isAvailable ? "" : "grayscale"}`}
+                            className={`h-full w-full object-cover ${isAvailable ? "" : "grayscale"}`}
 
                           />
 
@@ -774,7 +788,7 @@ export function MenuSections({
 
                           <div
 
-                            className={`flex h-24 w-28 items-center justify-center text-xs text-[#8a470f] ${
+                            className={`flex h-full w-full items-center justify-center text-xs text-[#8a470f] ${
 
                               isAvailable ? "" : "grayscale"
 
@@ -806,17 +820,17 @@ export function MenuSections({
 
 
 
-                      <div className="min-w-0 flex-1">
+                      <div className="order-1 min-w-0 grid min-h-[148px] flex-1 grid-rows-[auto_1fr_auto] gap-1.5">
                         <h2 className="line-clamp-2 text-lg font-extrabold leading-tight text-[#1f1f1f]">
                           {item.name}
                         </h2>
 
-                        <p className="mt-1 min-h-[2.5rem] overflow-hidden text-sm leading-snug text-[#8a470f] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                        <p className="mt-1 h-[2.4rem] overflow-hidden text-sm leading-[1.2rem] text-[#8a470f] line-clamp-2">
                           {showDescription ? item.description : "\u00A0"}
                         </p>
 
 
-                        <div className="mt-2 flex items-center justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2">
 
                           <PriceBadge
                             prices={prices}
@@ -888,7 +902,7 @@ export function MenuSections({
 
               return (
 
-                <div key={item.id} className="relative h-full">
+                <div key={item.id} className="relative h-full w-full">
 
                   {!isAvailable ? (
 
@@ -908,7 +922,7 @@ export function MenuSections({
 
                   <article
 
-                    className={`relative flex h-full flex-col rounded-[16px] border-[2px] border-[#2d1d13] p-3 shadow-[3px_3px_0_0_#2d1d13] sm:rounded-[20px] sm:border-[3px] sm:p-4 sm:shadow-[5px_5px_0_0_#2d1d13] ${
+                    className={`relative flex h-full flex-col rounded-[14px] border-[2px] border-[#2d1d13] p-2.5 shadow-[3px_3px_0_0_#2d1d13] sm:rounded-[16px] sm:border-[3px] sm:p-3 sm:shadow-[4px_4px_0_0_#2d1d13] ${
 
                       isAvailable
 
@@ -929,18 +943,18 @@ export function MenuSections({
                         <span className="sr-only">Open details for {item.name}</span>
                       </Link>
                     ) : null}
-                    <div className={`${isAvailable ? "" : "grayscale"} md:hidden`}>
-                      <div className="grid grid-cols-[100px_minmax(0,1fr)] items-stretch gap-3">
-                        <div className="relative overflow-hidden rounded-lg border-2 border-[#2d1d13] bg-[#fff7ea]">
+                    <div className={`${isAvailable ? "" : "grayscale"}`}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_160px] items-start gap-2.5">
+                        <div className="order-2 relative h-[120px] overflow-hidden rounded-lg border-2 border-[#2d1d13] bg-[#fff7ea]">
                           {item.imageUrls[0] ? (
                                                         <img
                               src={item.imageUrls[0]}
                               alt={item.name}
-                              className={`h-[100px] w-full object-cover ${isAvailable ? "" : "grayscale"}`}
+                              className={`h-full w-full object-cover ${isAvailable ? "" : "grayscale"}`}
                             />
                           ) : (
                             <div
-                              className={`flex h-[100px] w-full items-center justify-center text-xs text-[#8a470f] ${
+                              className={`flex h-full w-full items-center justify-center text-xs text-[#8a470f] ${
                                 isAvailable ? "" : "grayscale"
                               }`}
                             >
@@ -949,17 +963,17 @@ export function MenuSections({
                           )}
                         </div>
 
-                        <div className="min-w-0 flex flex-col gap-2">
-                          <h2 className="line-clamp-2 text-[1.1rem] font-extrabold leading-tight text-[#1f1f1f]">
+                        <div className="order-1 min-w-0 grid min-h-[120px] grid-rows-[auto_1fr_auto] gap-1">
+                          <h2 className="truncate text-[0.98rem] font-extrabold leading-tight text-[#1f1f1f]">
                             {item.name}
                           </h2>
 
-                          <p className="min-h-[2.5rem] overflow-hidden text-sm leading-snug text-[#8a470f] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                          <p className="h-[2.3rem] overflow-hidden text-[0.92rem] leading-[1.15rem] text-[#8a470f] line-clamp-2">
                             {showDescription ? item.description : "\u00A0"}
                           </p>
 
-                          <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-                            <PriceText prices={prices} className="self-end" showSlashPair={adminMode} />
+                          <div className="flex items-center justify-between gap-1.5">
+                            <PriceText prices={prices} showSlashPair={adminMode} />
                             {adminMode ? (
                               <button
                                 type="button"
@@ -1039,7 +1053,7 @@ export function MenuSections({
                       </div>
                     </div>
 
-                    <div className={`${isAvailable ? "" : "grayscale"} hidden h-full md:grid md:grid-rows-[3.2rem_auto_3.1rem_auto]`}>
+                    <div className="hidden">
                       <h2 className="overflow-hidden text-[1.35rem] font-extrabold leading-tight text-[#1f1f1f] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
                         {item.name}
                       </h2>
@@ -1191,9 +1205,9 @@ export function MenuSections({
 
   return (
 
-    <main className="py-6 sm:py-10">
+    <main className="pt-2 pb-6 sm:pt-3 sm:pb-10">
 
-      <div className="shell grid gap-4">{body}</div>
+      <div className="mx-auto grid w-[min(1460px,calc(100%-2rem))] gap-4">{body}</div>
 
     </main>
 

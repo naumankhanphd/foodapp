@@ -77,13 +77,27 @@ export function SectionNav({ sections, orientation = "horizontal" }: SectionNavP
   const isVertical = orientation === "vertical";
 
   return (
-    <nav className={isVertical ? "sticky top-24 z-20" : "sticky top-20 z-30"}>
+    <nav
+      className={
+        isVertical
+          ? "sticky top-24 z-20"
+          : "sticky top-[67px] z-30 -mx-2 rounded-2xl border border-[var(--line)] bg-[rgb(242_242_242_/_0.97)] px-2 py-2 backdrop-blur"
+      }
+    >
       <div
-        className={`rounded-2xl border border-[var(--line)] bg-white/95 p-2 shadow-sm backdrop-blur ${
-          isVertical ? "max-w-[170px]" : ""
-        }`}
+        className={
+          isVertical
+            ? "max-w-[170px] rounded-2xl border border-[var(--line)] bg-white/95 p-2 shadow-sm backdrop-blur"
+            : ""
+        }
       >
-        <div className={isVertical ? "grid gap-2" : "flex flex-wrap gap-2.5"}>
+        <div
+          className={
+            isVertical
+              ? "grid gap-2"
+              : "flex flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0"
+          }
+        >
           {sections.map((section) => {
             const isActive = section.anchor === activeAnchor;
             return (

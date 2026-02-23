@@ -1,10 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const footerServices = ["Dine-In", "Delivery", "Pickup", "Catering", "Chef Specials"];
 const footerCompany = ["About Us", "Our Chefs", "Careers", "Blog", "Contact"];
 const footerLegal = ["Privacy Policy", "Terms of Service", "Allergen Info"];
 
 export function SiteFooter() {
+  const pathname = usePathname();
+  if (pathname?.startsWith("/auth/complete-profile")) {
+    return null;
+  }
+
   return (
     <footer className="gt-footer">
       <div className="shell">

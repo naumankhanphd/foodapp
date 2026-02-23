@@ -4,10 +4,10 @@ function SkeletonLine({ className }: { className: string }) {
 
 export default function MenuLoading() {
   return (
-    <main className="py-6 sm:py-10">
+    <main className="pt-2 pb-6 sm:pt-3 sm:pb-10">
       <div className="shell grid animate-pulse gap-4">
-        <div className="sticky top-20 z-30 rounded-2xl border border-[var(--line)] bg-white p-2">
-          <div className="flex flex-nowrap gap-2.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+        <div className="sticky top-[67px] z-30 -mx-2 border-b border-[var(--line)] bg-[rgb(242_242_242_/_0.97)] px-2 py-2 backdrop-blur">
+          <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
             {Array.from({ length: 5 }).map((_, index) => (
               <SkeletonLine key={index} className="h-8 w-24 rounded-full" />
             ))}

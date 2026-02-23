@@ -6,6 +6,22 @@ import { FormEvent, useMemo, useState } from "react";
 import { CHECKOUT_RESTRICTION_POLICY } from "@/lib/auth/config.mjs";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 
+function inferNamesFromEmail(emailValue: string) {
+  const localPart = emailValue
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .trim();
+  if (!localPart) {
+    return { firstName: "Google", lastName: "" };
+  }
+
+  const parts = localPart.split(/\s+/);
+  return {
+    firstName: parts[0] || "Google",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
 type LoginPayload = {
   message?: string;
   requiresCompletion?: boolean;
@@ -52,7 +68,9 @@ export default function LoginPage() {
       }
 
       if (payload.requiresCompletion) {
-        router.push(`/auth/complete-profile?next=${encodeURIComponent(nextPath)}`);
+        router.push(
+          `/auth/complete-profile?next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(email.trim().toLowerCase())}`,
+        );
         return;
       }
 
@@ -75,17 +93,15 @@ export default function LoginPage() {
         setError("Please enter your email first.");
         return;
       }
-      const inferredName = normalizedEmail
-        .split("@")[0]
-        .replace(/[._-]+/g, " ")
-        .trim();
+      const inferredNames = inferNamesFromEmail(normalizedEmail);
 
       const response = await fetch("/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: normalizedEmail,
-          fullName: inferredName.length >= 2 ? inferredName : "Google User",
+          firstName: inferredNames.firstName,
+          lastName: inferredNames.lastName,
           requiredRole,
         }),
       });
@@ -102,7 +118,9 @@ export default function LoginPage() {
       }
 
       if (payload.requiresCompletion && payload.pendingToken) {
-        router.push(`/auth/complete-profile?pending=${encodeURIComponent(payload.pendingToken)}&next=${encodeURIComponent(nextPath)}`);
+        router.push(
+          `/auth/complete-profile?pending=${encodeURIComponent(payload.pendingToken)}&next=${encodeURIComponent(nextPath)}&email=${encodeURIComponent(normalizedEmail)}`,
+        );
         return;
       }
       if (payload.requiresCompletion) {

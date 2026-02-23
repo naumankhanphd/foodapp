@@ -3,6 +3,13 @@ import { ROLE_VALUES, ROLES } from "./config.mjs";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const FINNISH_PHONE_PATTERN = /^\+358[1-9]\d{4,10}$/;
+const NAME_PART_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M}\s'.-]{0,78}$/u;
+
+function normalizeNamePart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
 
 export function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -17,11 +24,27 @@ export function requireEmail(email) {
 }
 
 export function requireFullName(fullName) {
-  const name = String(fullName || "").trim();
+  const name = normalizeNamePart(fullName);
   if (name.length < 2) {
     throw new AuthError("Full name must be at least 2 characters.", 400, "INVALID_NAME");
   }
   return name;
+}
+
+function requireNamePart(namePart, label) {
+  const value = normalizeNamePart(namePart);
+  if (value.length < 2 || !NAME_PART_PATTERN.test(value)) {
+    throw new AuthError(`${label} must be at least 2 valid characters.`, 400, "INVALID_NAME");
+  }
+  return value;
+}
+
+export function requireFirstName(firstName) {
+  return requireNamePart(firstName, "First name");
+}
+
+export function requireLastName(lastName) {
+  return requireNamePart(lastName, "Last name");
 }
 
 export function requirePassword(password) {

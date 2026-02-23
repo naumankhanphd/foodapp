@@ -16,6 +16,8 @@ export function hasRequiredRole(role, requiredRoles) {
 
 function hasMandatoryProfile(session) {
   return (
+    Boolean(session?.firstName) &&
+    Boolean(session?.lastName) &&
     Boolean(session?.phone) &&
     Boolean(session?.addressLine1) &&
     Boolean(session?.addressCity)

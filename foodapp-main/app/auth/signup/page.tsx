@@ -5,11 +5,26 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 
+function inferNamesFromEmail(emailValue: string) {
+  const localPart = emailValue
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .trim();
+  if (!localPart) {
+    return { firstName: "Google", lastName: "" };
+  }
+
+  const parts = localPart.split(/\s+/);
+  return {
+    firstName: parts[0] || "Google",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const defaultRole = "CUSTOMER";
 
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -25,7 +40,6 @@ export default function SignupPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fullName,
           email,
           password,
           role: defaultRole,
@@ -34,6 +48,7 @@ export default function SignupPage() {
       const payload = (await response.json()) as {
         message?: string;
         requiresCompletion?: boolean;
+        pendingToken?: string;
       };
 
       if (!response.ok) {
@@ -42,7 +57,14 @@ export default function SignupPage() {
       }
 
       if (payload.requiresCompletion) {
-        router.push(`/auth/complete-profile?next=${encodeURIComponent("/menu")}`);
+        const query = new URLSearchParams({
+          next: "/menu",
+          email: email.trim().toLowerCase(),
+        });
+        if (payload.pendingToken) {
+          query.set("pending", payload.pendingToken);
+        }
+        router.push(`/auth/complete-profile?${query.toString()}`);
         return;
       }
 
@@ -66,18 +88,15 @@ export default function SignupPage() {
         return;
       }
 
-      const fallbackNameFromEmail = normalizedEmail
-        .split("@")[0]
-        .replace(/[._-]+/g, " ")
-        .trim();
-      const resolvedName = fullName.trim() || fallbackNameFromEmail || "Google User";
+      const inferredNames = inferNamesFromEmail(normalizedEmail);
 
       const response = await fetch("/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: normalizedEmail,
-          fullName: resolvedName.length >= 2 ? resolvedName : "Google User",
+          firstName: inferredNames.firstName,
+          lastName: inferredNames.lastName,
           role: defaultRole,
         }),
       });
@@ -94,11 +113,13 @@ export default function SignupPage() {
       }
 
       if (payload.requiresCompletion && payload.pendingToken) {
-        router.push(`/auth/complete-profile?pending=${encodeURIComponent(payload.pendingToken)}&next=${encodeURIComponent("/menu")}`);
+        router.push(
+          `/auth/complete-profile?pending=${encodeURIComponent(payload.pendingToken)}&next=${encodeURIComponent("/menu")}&email=${encodeURIComponent(normalizedEmail)}`,
+        );
         return;
       }
       if (payload.requiresCompletion) {
-        router.push(`/auth/complete-profile?next=${encodeURIComponent("/menu")}`);
+        router.push(`/auth/complete-profile?next=${encodeURIComponent("/menu")}&email=${encodeURIComponent(normalizedEmail)}`);
         return;
       }
 
@@ -133,20 +154,6 @@ export default function SignupPage() {
           </div>
 
           <form className="grid gap-3" onSubmit={handleSubmit}>
-            <label className="grid gap-1">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2d3f72]">Full Name</span>
-              <input
-                className="rounded-xl border border-[var(--line)] bg-white px-3 py-2.5 text-base text-[#1d2b57]"
-                type="text"
-                placeholder="Your name"
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                required
-              />
-              <span className="text-sm text-[#4f5f90]">
-                Use 2-80 characters with letters, spaces, apostrophes, periods, or hyphens.
-              </span>
-            </label>
             <label className="grid gap-1">
               <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2d3f72]">Email</span>
               <input

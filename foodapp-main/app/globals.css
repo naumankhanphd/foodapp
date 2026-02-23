@@ -81,7 +81,7 @@ h3 {
   top: 0;
   z-index: 40;
   border-bottom: 1px solid var(--line);
-  background: rgb(255 255 255 / 0.97);
+  background: rgb(242 242 242 / 0.97);
   backdrop-filter: blur(8px);
 }
 
@@ -667,6 +667,72 @@ h3 {
 #about,
 #contact {
   scroll-margin-top: 90px;
+}
+
+.gt-auth-sheet {
+  animation: gt-auth-sheet-enter 280ms cubic-bezier(0.2, 0.75, 0.22, 1) both;
+}
+
+.gt-auth-sheet::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1.4rem;
+  pointer-events: none;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+  background: linear-gradient(180deg, rgb(0 0 0 / 0.22) 0%, rgb(0 0 0 / 0) 100%);
+  z-index: 2;
+}
+
+.gt-auth-sheet::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-top: 1px solid rgb(45 29 19 / 0.5);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.gt-auth-sheet-no-topfx::before,
+.gt-auth-sheet-no-topfx::after {
+  display: none;
+}
+
+@keyframes gt-auth-sheet-enter {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 639px) {
+  @keyframes gt-auth-sheet-enter {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gt-auth-sheet {
+    animation: none;
+  }
 }
 
 @media (min-width: 640px) {
