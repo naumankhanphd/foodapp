@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import mysql from "mysql2/promise";
 import { computeCheckoutTotal } from "../lib/pricing.mjs";
 import {
   beginGoogleAuth,
@@ -28,6 +29,45 @@ import {
   resetCartStoreForTests,
   updateCartItem,
 } from "../lib/cart/store.mjs";
+
+const DB_REQUIRED_CASES = new Set([
+  "auth: customer signup and login works",
+  "auth: google flow enforces completion + phone verification",
+  "auth: password reset updates credentials",
+  "menu: admin search and pagination work",
+  "menu: create and update item tracks updatedAt",
+  "cart: required modifiers are enforced when adding an item",
+  "cart: update quantity and checkout preview compute totals",
+  "checkout: minimum order is enforced for delivery",
+]);
+
+async function canConnectToDatabase() {
+  const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+  if (!databaseUrl) {
+    return false;
+  }
+
+  let connection;
+  try {
+    const parsed = new URL(databaseUrl);
+    connection = await mysql.createConnection({
+      host: parsed.hostname,
+      port: Number(parsed.port || 3306),
+      user: decodeURIComponent(parsed.username),
+      password: decodeURIComponent(parsed.password),
+      database: parsed.pathname.replace(/^\/+/, ""),
+      connectTimeout: 4000,
+    });
+    await connection.query("SELECT 1");
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (connection) {
+      await connection.end().catch(() => {});
+    }
+  }
+}
 
 const cases = [
   {
@@ -280,8 +320,16 @@ const cases = [
 ];
 
 let passed = 0;
+let skipped = 0;
+const databaseAvailable = await canConnectToDatabase();
 
 for (const testCase of cases) {
+  if (DB_REQUIRED_CASES.has(testCase.name) && !databaseAvailable) {
+    skipped += 1;
+    console.log(`SKIP: ${testCase.name} (database unavailable)`);
+    continue;
+  }
+
   try {
     await testCase.run();
     passed += 1;
@@ -293,4 +341,4 @@ for (const testCase of cases) {
   }
 }
 
-console.log(`\n${passed}/${cases.length} tests passed.`);
+console.log(`\n${passed}/${cases.length} tests passed, ${skipped} skipped.`);

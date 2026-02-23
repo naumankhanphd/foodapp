@@ -3,13 +3,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { MenuSections, type MenuCategorySection } from "@/app/menu/menu-sections";
 
-type Pagination = {
-  page: number;
-  totalPages: number;
-  hasPreviousPage: boolean;
-  hasNextPage: boolean;
-};
-
 type Category = {
   id: string;
   name: string;
@@ -19,26 +12,9 @@ type Category = {
   itemCount: number;
 };
 
-type ModifierOption = {
-  id: string;
-  name: string;
-  priceDelta: number;
-  isActive: boolean;
-};
-
-type ModifierGroup = {
-  id: string;
-  name: string;
-  isRequired: boolean;
-  minSelect: number;
-  maxSelect: number;
-  options: ModifierOption[];
-};
-
 type MenuItem = {
   id: string;
   categoryId: string;
-  categoryName: string;
   name: string;
   description: string;
   basePrice: number;
@@ -46,8 +22,6 @@ type MenuItem = {
   prepMinutes: number;
   isActive: boolean;
   imageUrls: string[];
-  updatedAt: string;
-  modifierGroups: ModifierGroup[];
 };
 
 type PublicMenuCategory = {
@@ -125,27 +99,10 @@ function buildEditForm(item: MenuItem): EditItemForm {
 
 export default function StaffMenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [items, setItems] = useState<MenuItem[]>([]);
   const [categorySearch, setCategorySearch] = useState("");
-  const [itemSearch, setItemSearch] = useState("");
-  const [itemPage, setItemPage] = useState(1);
-  const [itemPagination, setItemPagination] = useState<Pagination>({
-    page: 1,
-    totalPages: 1,
-    hasPreviousPage: false,
-    hasNextPage: false,
-  });
 
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategorySort, setNewCategorySort] = useState("0");
-  const [newItem, setNewItem] = useState({
-    categoryId: "",
-    name: "",
-    description: "",
-    imageUrls: "",
-    basePrice: "0",
-    prepMinutes: "10",
-  });
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -179,19 +136,6 @@ export default function StaffMenuPage() {
     setCategories(result.data);
   }
 
-  async function loadItems() {
-    const query = new URLSearchParams({
-      page: String(itemPage),
-      pageSize: "6",
-      search: itemSearch,
-    });
-    const result = await api<{ data: MenuItem[]; pagination: Pagination }>(
-      `/api/admin/menu/items?${query.toString()}`,
-    );
-    setItems(result.data);
-    setItemPagination(result.pagination);
-  }
-
   async function loadMenuPreview() {
     setPreviewPending(true);
     setPreviewError("");
@@ -218,14 +162,7 @@ export default function StaffMenuPage() {
 
   useEffect(() => {
     void loadMenuPreview();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!newItem.categoryId && categories.length > 0) {
-      setNewItem((prev) => ({ ...prev, categoryId: categories[0].id }));
-    }
-  }, [categories, newItem.categoryId]);
 
   useEffect(() => {
     if (!editingItem) {
@@ -256,32 +193,6 @@ export default function StaffMenuPage() {
     }, "Category created.");
   }
 
-  function createItem(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void run(async () => {
-      await api("/api/admin/menu/items", {
-        method: "POST",
-        body: JSON.stringify({
-          categoryId: newItem.categoryId,
-          name: newItem.name,
-          description: newItem.description,
-          imageUrls: parseList(newItem.imageUrls),
-          basePrice: Number(newItem.basePrice),
-          prepMinutes: Number(newItem.prepMinutes),
-        }),
-      });
-      setNewItem((prev) => ({
-        ...prev,
-        name: "",
-        description: "",
-        imageUrls: "",
-        basePrice: "0",
-        prepMinutes: "10",
-      }));
-      await loadItems();
-    }, "Item created.");
-  }
-
   function renameCategory(category: Category) {
     const name = window.prompt("Category name", category.name);
     if (!name) return;
@@ -309,29 +220,6 @@ export default function StaffMenuPage() {
       await api(`/api/admin/menu/categories/${category.id}`, { method: "DELETE" });
       await refreshAll();
     }, "Category deleted.");
-  }
-
-  function editItem(item: MenuItem) {
-    const name = window.prompt("Item name", item.name);
-    if (!name) return;
-    const description = window.prompt("Description", item.description) || item.description;
-    const basePrice = window.prompt("Base price", String(item.basePrice)) || String(item.basePrice);
-    const prepMinutes = window.prompt("Prep minutes", String(item.prepMinutes)) || String(item.prepMinutes);
-    const imageUrls = window.prompt("Image URLs (comma)", item.imageUrls.join(", ")) || "";
-
-    void run(async () => {
-      await api(`/api/admin/menu/items/${item.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          name,
-          description,
-          basePrice: Number(basePrice),
-          prepMinutes: Number(prepMinutes),
-          imageUrls: parseList(imageUrls),
-        }),
-      });
-      await refreshAll();
-    }, "Item updated.");
   }
 
   async function handlePreviewEditItem(itemId: string) {
@@ -392,116 +280,6 @@ export default function StaffMenuPage() {
     } finally {
       setEditPending(false);
     }
-  }
-
-  function toggleItem(item: MenuItem) {
-    void run(async () => {
-      await api(`/api/admin/menu/items/${item.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive: !item.isActive }),
-      });
-      await loadItems();
-    }, "Item availability updated.");
-  }
-
-  function deleteItem(item: MenuItem) {
-    void run(async () => {
-      await api(`/api/admin/menu/items/${item.id}`, { method: "DELETE" });
-      await refreshAll();
-    }, "Item deleted.");
-  }
-
-  function addGroup(item: MenuItem) {
-    const name = window.prompt("Modifier group name", "Add-ons");
-    if (!name) return;
-    const minSelect = window.prompt("Min selections", "0") || "0";
-    const maxSelect = window.prompt("Max selections", "1") || "1";
-    const isRequired = window.confirm("Required group?");
-
-    void run(async () => {
-      await api(`/api/admin/menu/items/${item.id}/modifier-groups`, {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          minSelect: Number(minSelect),
-          maxSelect: Number(maxSelect),
-          isRequired,
-        }),
-      });
-      await loadItems();
-    }, "Modifier group created.");
-  }
-
-  function editGroup(group: ModifierGroup) {
-    const name = window.prompt("Group name", group.name);
-    if (!name) return;
-    const minSelect = window.prompt("Min selections", String(group.minSelect)) || String(group.minSelect);
-    const maxSelect = window.prompt("Max selections", String(group.maxSelect)) || String(group.maxSelect);
-    const isRequired = window.confirm("Should this group be required?");
-
-    void run(async () => {
-      await api(`/api/admin/menu/modifier-groups/${group.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          name,
-          minSelect: Number(minSelect),
-          maxSelect: Number(maxSelect),
-          isRequired,
-        }),
-      });
-      await loadItems();
-    }, "Modifier group updated.");
-  }
-
-  function deleteGroup(group: ModifierGroup) {
-    void run(async () => {
-      await api(`/api/admin/menu/modifier-groups/${group.id}`, { method: "DELETE" });
-      await loadItems();
-    }, "Modifier group deleted.");
-  }
-
-  function addOption(group: ModifierGroup) {
-    const name = window.prompt("Option name", "Extra topping");
-    if (!name) return;
-    const priceDelta = window.prompt("Price delta", "0") || "0";
-
-    void run(async () => {
-      await api(`/api/admin/menu/modifier-groups/${group.id}/options`, {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          priceDelta: Number(priceDelta),
-          isActive: true,
-        }),
-      });
-      await loadItems();
-    }, "Modifier option created.");
-  }
-
-  function editOption(option: ModifierOption) {
-    const name = window.prompt("Option name", option.name);
-    if (!name) return;
-    const priceDelta = window.prompt("Price delta", String(option.priceDelta)) || String(option.priceDelta);
-    const isActive = window.confirm("Should this option stay active?");
-
-    void run(async () => {
-      await api(`/api/admin/menu/modifier-options/${option.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          name,
-          priceDelta: Number(priceDelta),
-          isActive,
-        }),
-      });
-      await loadItems();
-    }, "Modifier option updated.");
-  }
-
-  function deleteOption(option: ModifierOption) {
-    void run(async () => {
-      await api(`/api/admin/menu/modifier-options/${option.id}`, { method: "DELETE" });
-      await loadItems();
-    }, "Modifier option deleted.");
   }
 
   return (

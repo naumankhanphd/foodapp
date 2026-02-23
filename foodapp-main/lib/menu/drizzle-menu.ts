@@ -1,5 +1,5 @@
 ﻿import { asc, eq, sql } from "drizzle-orm";
-import { db } from "@/lib/db/client";
+import { db } from "../db/client.ts";
 import {
   drinkMenuItems,
   imagesMetadata,
@@ -8,7 +8,7 @@ import {
   pizzaMenuItems,
   salaatitMenuItems,
   starterMenuItems,
-} from "@/lib/db/menu-schema";
+} from "../db/menu-schema.ts";
 import { MenuValidationError } from "./validation.mjs";
 
 type MenuCategory = {

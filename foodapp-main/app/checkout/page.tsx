@@ -41,6 +41,10 @@ const PAYMENT_METHODS: Array<{ value: PaymentMethod; label: string }> = [
   { value: "CASH", label: "Cash" },
 ];
 
+function formatEuro(value: number) {
+  return `€${Number(value).toFixed(2).replace(".", ",")}`;
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const [orderType, setOrderType] = useState<OrderType>("DELIVERY");
@@ -284,24 +288,24 @@ export default function CheckoutPage() {
               <div className="mt-3 space-y-2 text-sm">
                 <p className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>${summary.subtotal.toFixed(2)}</span>
+                  <span>{formatEuro(summary.subtotal)}</span>
                 </p>
                 <p className="flex justify-between">
                   <span>Discount</span>
-                  <span>-${summary.discount.toFixed(2)}</span>
+                  <span>-{formatEuro(summary.discount)}</span>
                 </p>
                 <p className="flex justify-between">
                   <span>{summary.taxIncludedInMenuPrices ? "Tax / VAT (included)" : "Tax / VAT"}</span>
-                  <span>${summary.tax.toFixed(2)}</span>
+                  <span>{formatEuro(summary.tax)}</span>
                 </p>
                 <p className="flex justify-between">
                   <span>Delivery Fee</span>
-                  <span>${summary.deliveryFee.toFixed(2)}</span>
+                  <span>{formatEuro(summary.deliveryFee)}</span>
                 </p>
                 <hr className="border-[var(--line)]" />
                 <p className="flex justify-between text-base font-semibold">
                   <span>Total</span>
-                  <span>${summary.total.toFixed(2)}</span>
+                  <span>{formatEuro(summary.total)}</span>
                 </p>
                 <p className="text-xs text-[var(--muted)]">
                   {summary.taxIncludedInMenuPrices
@@ -309,7 +313,7 @@ export default function CheckoutPage() {
                     : "Tax is not included in menu prices and is added above."}
                 </p>
                 <p className="text-xs text-[var(--muted)]">
-                  Minimum order for this mode: ${preview?.checkout.minimumOrderTotal.toFixed(2)}
+                  Minimum order for this mode: {formatEuro(preview?.checkout.minimumOrderTotal || 0)}
                 </p>
               </div>
             ) : null}

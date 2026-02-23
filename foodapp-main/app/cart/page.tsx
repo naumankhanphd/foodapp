@@ -128,6 +128,10 @@ function labelOrderType(orderType: "DINE_IN" | "DELIVERY" | "PICKUP") {
   return "Delivery";
 }
 
+function formatEuro(value: number) {
+  return `€${Number(value).toFixed(2).replace(".", ",")}`;
+}
+
 export default function CartPage() {
   const [data, setData] = useState<CartPayload | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({});
@@ -246,16 +250,27 @@ export default function CartPage() {
     if (existing.selectedOptionIds.includes(optionId)) {
       nextSelectedOptionIds = existing.selectedOptionIds.filter((value) => value !== optionId);
     } else {
-      const selectedInGroup = existing.selectedOptionIds.filter((selectedId) =>
+      const selectedInGroupIds = existing.selectedOptionIds.filter((selectedId) =>
         group.options.some((option) => option.id === selectedId),
-      ).length;
-      if (selectedInGroup >= group.maxSelect) {
-        setError(`"${group.name}" allows max ${group.maxSelect} selection(s).`);
-        return;
+      );
+
+      if (selectedInGroupIds.length >= group.maxSelect) {
+        if (group.maxSelect === 1) {
+          // Single-select groups should switch selection instead of throwing a max error.
+          nextSelectedOptionIds = [
+            ...existing.selectedOptionIds.filter((selectedId) => !selectedInGroupIds.includes(selectedId)),
+            optionId,
+          ];
+        } else {
+          setError(`"${group.name}" allows max ${group.maxSelect} selection(s).`);
+          return;
+        }
+      } else {
+        nextSelectedOptionIds = [...existing.selectedOptionIds, optionId];
       }
-      nextSelectedOptionIds = [...existing.selectedOptionIds, optionId];
     }
 
+    setError("");
     const nextDraft: ItemDraft = {
       ...existing,
       selectedOptionIds: nextSelectedOptionIds,
@@ -468,7 +483,7 @@ export default function CartPage() {
                     <div className="min-w-0 pr-2">
                       <h3 className="line-clamp-2 text-lg font-extrabold">{item.itemName}</h3>
                     </div>
-                    <div className="shrink-0 flex flex-col items-end gap-2">
+                    <div className="shrink-0 flex flex-col items-center gap-2">
                       <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white px-1 py-1">
                         <button
                           type="button"
@@ -491,7 +506,7 @@ export default function CartPage() {
                           +
                         </button>
                       </div>
-                      <p className="text-sm font-semibold">${item.lineTotal.toFixed(2)}</p>
+                      <p className="w-full text-center text-sm font-semibold">{formatEuro(item.lineTotal)}</p>
                     </div>
                   </div>
 
@@ -535,10 +550,13 @@ export default function CartPage() {
                               <span>{option.name}</span>
                               <span className="flex items-center gap-3">
                                 <span className="text-xs text-[var(--muted)]">
-                                  +${option.priceDelta.toFixed(2)}
+                                  {group.maxSelect === 1
+                                    ? formatEuro(item.basePrice + option.priceDelta)
+                                    : `${option.priceDelta >= 0 ? "+" : "-"}${formatEuro(Math.abs(option.priceDelta))}`}
                                 </span>
                                 <input
-                                  type="checkbox"
+                                  type={group.maxSelect === 1 ? "radio" : "checkbox"}
+                                  name={group.maxSelect === 1 ? `modifier-${item.id}-${group.id}` : undefined}
                                   checked={draft.selectedOptionIds.includes(option.id)}
                                   onChange={() => void toggleDraftOption(item, option.id)}
                                 />
@@ -608,7 +626,7 @@ export default function CartPage() {
             Items: <strong>{cart?.itemCount || 0}</strong>
           </p>
           <p className="mt-1 text-sm">
-            Subtotal: <strong>${(cart?.subtotal || 0).toFixed(2)}</strong>
+            Subtotal: <strong>{formatEuro(cart?.subtotal || 0)}</strong>
           </p>
           <p className="mt-1 text-xs text-[var(--muted)]">
             VAT/tax is included in prices. Delivery fee is calculated at checkout based on order type.

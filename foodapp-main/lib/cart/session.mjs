@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readSessionFromRequest } from "@/lib/auth/service.mjs";
+import { readSessionFromRequest } from "../auth/service.mjs";
 
 export const CART_GUEST_COOKIE_NAME = "foodapp_guest_cart";
 

@@ -81,7 +81,8 @@ const baseMenuColumns = {
   updatedAt,
 };
 
-const { description: _unusedDescriptionColumn, ...baseMenuColumnsNoDescription } = baseMenuColumns;
+const { description, ...baseMenuColumnsNoDescription } = baseMenuColumns;
+void description;
 
 export const starterMenuItems = mysqlTable(
   "starter_menu_items",
