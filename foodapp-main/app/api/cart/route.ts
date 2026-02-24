@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     const owner = resolveCartOwner(request);
     const cart = await getCartSnapshot(owner.ownerKey);
     const response = NextResponse.json(cartResponse(cart));
-    return applyCartGuestCookie(response, owner);
+    return applyCartGuestCookie(response, owner, request);
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -39,7 +39,7 @@ export async function PATCH(request: NextRequest) {
     const patch = validateCartPatch(body);
     const cart = await updateCart(owner.ownerKey, patch);
     const response = NextResponse.json(cartResponse(cart));
-    return applyCartGuestCookie(response, owner);
+    return applyCartGuestCookie(response, owner, request);
   } catch (error) {
     return toErrorResponse(error);
   }

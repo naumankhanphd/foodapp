@@ -17,7 +17,7 @@ export async function PATCH(request: NextRequest, { params }: CartItemRouteProps
 
     const cart = await updateCartItem(owner.ownerKey, cartItemId, patch);
     const response = NextResponse.json({ cart });
-    return applyCartGuestCookie(response, owner);
+    return applyCartGuestCookie(response, owner, request);
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -30,7 +30,7 @@ export async function DELETE(request: NextRequest, { params }: CartItemRouteProp
 
     const cart = await removeCartItem(owner.ownerKey, cartItemId);
     const response = NextResponse.json({ cart });
-    return applyCartGuestCookie(response, owner);
+    return applyCartGuestCookie(response, owner, request);
   } catch (error) {
     return toErrorResponse(error);
   }

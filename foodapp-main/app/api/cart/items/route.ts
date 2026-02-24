@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     const cart = await addCartItem(owner.ownerKey, payload);
     const response = NextResponse.json({ cart }, { status: 201 });
-    return applyCartGuestCookie(response, owner);
+    return applyCartGuestCookie(response, owner, request);
   } catch (error) {
     return toErrorResponse(error);
   }
