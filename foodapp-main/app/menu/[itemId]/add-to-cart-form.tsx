@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 
 type ModifierOption = {
@@ -205,12 +204,6 @@ export function AddToCartForm({ item }: AddToCartFormProps) {
         >
           Add to cart
         </button>
-        <Link
-          href="/cart"
-          className="rounded-lg border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
-        >
-          View cart
-        </Link>
       </div>
     </form>
   );

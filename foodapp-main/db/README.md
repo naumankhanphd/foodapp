@@ -24,9 +24,4 @@ npm run db:seed
 - Migration files live in `db/migrations/`.
 - Seed files live in `db/seed/`.
 - Scripts iterate SQL files in lexical order.
-- `002_core_entities.sql` adds auth sessions/JWT support, OTP/password reset tables, menu modifier and image support, strict pricing/offer constraints, and reporting aggregate refresh procedure.
-- Refresh report aggregates with:
-
-```sql
-CALL refresh_report_materializations();
-```
+- `010_drop_unused_tables.sql` removes legacy cart/order/payment/reporting tables not used by runtime code.

@@ -2,17 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 
 const navItems = [
-  { key: "home", href: "/", label: "Home" },
   { key: "menu", href: "/menu", label: "Menu" },
-  { key: "cart", href: "/cart", label: "Cart" },
   { key: "offers", href: "/offers", label: "Offers" },
 ];
-const neutralNavItems = navItems.filter((item) => item.key !== "home" && item.key !== "cart");
+const neutralNavItems = navItems;
 
 function inferNamesFromEmail(emailValue: string) {
   const localPart = emailValue
@@ -48,6 +46,49 @@ type AuthPayload = {
   pendingToken?: string;
 };
 
+type GuestCartSnapshot = {
+  itemCount: number;
+  subtotal: number;
+};
+
+type GuestCartItem = {
+  id: string;
+  itemName: string;
+  quantity: number;
+  lineTotal: number;
+};
+
+type GuestCartApiPayload = {
+  message?: string;
+  cart?: {
+    itemCount?: number;
+    subtotal?: number;
+    items?: Array<{
+      id?: string;
+      itemName?: string;
+      quantity?: number;
+      lineTotal?: number;
+    }>;
+  };
+};
+
+function formatEuro(value: number) {
+  return `\u20AC${Number(value || 0).toFixed(2).replace(".", ",")}`;
+}
+
+function parseGuestCartItems(payload: GuestCartApiPayload): GuestCartItem[] {
+  return Array.isArray(payload.cart?.items)
+    ? payload.cart.items
+        .map((item) => ({
+          id: String(item.id || ""),
+          itemName: String(item.itemName || "").trim(),
+          quantity: Number(item.quantity || 0),
+          lineTotal: Number(item.lineTotal || 0),
+        }))
+        .filter((item) => item.id && item.itemName && item.quantity > 0)
+    : [];
+}
+
 export function SiteHero() {
   const pathname = usePathname();
   const hideChrome = pathname?.startsWith("/auth/complete-profile");
@@ -59,6 +100,14 @@ export function SiteHero() {
   const [authView, setAuthView] = useState<AuthView | null>(null);
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [guestCart, setGuestCart] = useState<GuestCartSnapshot>({ itemCount: 0, subtotal: 0 });
+  const [guestCartItems, setGuestCartItems] = useState<GuestCartItem[]>([]);
+  const [guestCartDrawerOpen, setGuestCartDrawerOpen] = useState(false);
+  const [guestCartMutatingIds, setGuestCartMutatingIds] = useState<string[]>([]);
+  const [guestCartActionError, setGuestCartActionError] = useState("");
+  const [venueComment, setVenueComment] = useState("");
+  const [venueCommentDraft, setVenueCommentDraft] = useState("");
+  const [isVenueCommentEditing, setIsVenueCommentEditing] = useState(false);
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -90,6 +139,95 @@ export function SiteHero() {
   const accountDisplayName = (`${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.fullName || user?.email || "").trim();
   const accountInitial = (accountDisplayName.charAt(0) || "U").toUpperCase();
   const accountTriggerLabel = user?.role === "ADMIN" ? "Admin" : "Account";
+  const hasGuestCartItems = user === null && guestCart.itemCount > 0;
+  const showMobileGuestOrderBar = hasGuestCartItems && !guestCartDrawerOpen;
+
+  const applyGuestCartPayload = useCallback((payload: GuestCartApiPayload) => {
+    const itemCount = Number(payload.cart?.itemCount || 0);
+    const subtotal = Number(payload.cart?.subtotal || 0);
+    const parsedItems = parseGuestCartItems(payload);
+
+    setGuestCart({
+      itemCount: Number.isFinite(itemCount) ? itemCount : 0,
+      subtotal: Number.isFinite(subtotal) ? subtotal : 0,
+    });
+    setGuestCartItems(parsedItems);
+    if (itemCount <= 0) {
+      setGuestCartDrawerOpen(false);
+    }
+  }, []);
+
+  function setGuestCartItemMutating(itemId: string, pending: boolean) {
+    setGuestCartMutatingIds((current) => {
+      if (pending) {
+        return current.includes(itemId) ? current : [...current, itemId];
+      }
+      return current.filter((entry) => entry !== itemId);
+    });
+  }
+
+  async function changeGuestCartItemQuantity(item: GuestCartItem, nextQuantity: number) {
+    if (nextQuantity < 1) {
+      return;
+    }
+
+    setGuestCartActionError("");
+    setGuestCartItemMutating(item.id, true);
+    try {
+      const response = await fetch(`/api/cart/items/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: nextQuantity }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as GuestCartApiPayload;
+      if (!response.ok) {
+        throw new Error(payload.message || "Unable to update quantity.");
+      }
+
+      applyGuestCartPayload(payload);
+    } catch (caught) {
+      setGuestCartActionError(caught instanceof Error ? caught.message : "Unable to update quantity.");
+    } finally {
+      setGuestCartItemMutating(item.id, false);
+    }
+  }
+
+  async function deleteGuestCartItem(item: GuestCartItem) {
+    setGuestCartActionError("");
+    setGuestCartItemMutating(item.id, true);
+    try {
+      const response = await fetch(`/api/cart/items/${item.id}`, {
+        method: "DELETE",
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as GuestCartApiPayload;
+      if (!response.ok) {
+        throw new Error(payload.message || "Unable to remove item.");
+      }
+
+      applyGuestCartPayload(payload);
+    } catch (caught) {
+      setGuestCartActionError(caught instanceof Error ? caught.message : "Unable to remove item.");
+    } finally {
+      setGuestCartItemMutating(item.id, false);
+    }
+  }
+
+  function startVenueCommentEdit() {
+    setVenueCommentDraft(venueComment);
+    setIsVenueCommentEditing(true);
+  }
+
+  function cancelVenueCommentEdit() {
+    setVenueCommentDraft(venueComment);
+    setIsVenueCommentEditing(false);
+  }
+
+  function saveVenueComment() {
+    setVenueComment(venueCommentDraft.trim().slice(0, 280));
+    setIsVenueCommentEditing(false);
+  }
 
   useEffect(() => {
     setIsClient(true);
@@ -126,6 +264,81 @@ export function SiteHero() {
   }, [pathname]);
 
   useEffect(() => {
+    if (user !== null) {
+      setGuestCart((current) =>
+        current.itemCount === 0 && current.subtotal === 0
+          ? current
+          : { itemCount: 0, subtotal: 0 },
+      );
+      setGuestCartItems((current) => (current.length === 0 ? current : []));
+      setGuestCartMutatingIds((current) => (current.length === 0 ? current : []));
+      setGuestCartActionError("");
+      setGuestCartDrawerOpen(false);
+      return;
+    }
+
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const loadGuestCart = async () => {
+      try {
+        const response = await fetch("/api/cart", {
+          method: "GET",
+          cache: "no-store",
+        });
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        const payload = (await response.json()) as GuestCartApiPayload;
+        if (!cancelled) {
+          applyGuestCartPayload(payload);
+        }
+      } catch {
+        // Ignore cart header refresh errors.
+      }
+    };
+
+    void loadGuestCart();
+    intervalId = setInterval(() => {
+      void loadGuestCart();
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [applyGuestCartPayload, pathname, user]);
+
+  useEffect(() => {
+    setGuestCartDrawerOpen(false);
+    setGuestCartActionError("");
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!guestCartDrawerOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setGuestCartDrawerOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [guestCartDrawerOpen]);
+
+  useEffect(() => {
     if (!authView) {
       return;
     }
@@ -159,6 +372,7 @@ export function SiteHero() {
       setLoginEmail(signupEmail);
     }
 
+    setGuestCartDrawerOpen(false);
     setMobileMenuOpen(false);
     setAuthError("");
     setAuthView(view);
@@ -448,13 +662,27 @@ export function SiteHero() {
                   </div>
                 </details>
               ) : user === null ? (
-                <button
-                  type="button"
-                  className="gt-btn gt-btn-primary"
-                  onClick={() => openAuthModal("login")}
-                >
-                  Account
-                </button>
+                hasGuestCartItems ? (
+                  <button
+                    type="button"
+                    onClick={() => setGuestCartDrawerOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-[var(--accent-ink)] hover:bg-[#ea6b12]"
+                  >
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b35311] px-1 text-[11px] leading-none text-white">
+                      {guestCart.itemCount}
+                    </span>
+                    <span>View order</span>
+                    <span className="font-bold">{formatEuro(guestCart.subtotal)}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="gt-btn gt-btn-primary"
+                    onClick={() => openAuthModal("login")}
+                  >
+                    Account
+                  </button>
+                )
               ) : null}
             </div>
             <details
@@ -679,7 +907,209 @@ export function SiteHero() {
             document.body,
           )
         : null}
+
+      {isClient && guestCartDrawerOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[95]">
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/50"
+                aria-label="Close order panel"
+                onClick={() => setGuestCartDrawerOpen(false)}
+              />
+              <aside className="absolute bottom-0 left-0 right-0 flex max-h-[88vh] min-h-0 flex-col overflow-hidden rounded-t-[24px] border-x-[3px] border-t-[3px] border-[#2d1d13] bg-[linear-gradient(155deg,#fff4dd_0%,#f9ecd4_60%,#e7f6ef_100%)] p-5 shadow-[0_-10px_22px_rgba(0,0,0,0.32)] md:bottom-0 md:left-auto md:right-0 md:top-0 md:max-h-none md:w-full md:max-w-lg md:rounded-none md:border-x-0 md:border-y-0 md:border-l-[3px] md:shadow-[-8px_0_0_#2d1d13]">
+                <div className="flex shrink-0 items-center justify-between">
+                  <h2 className="text-3xl font-black text-[#1f1f1f]">Your order</h2>
+                  <button
+                    type="button"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#2d1d13] bg-[#fff9ef] text-xl font-bold text-[#2d1d13] hover:bg-[#f6ead6]"
+                    onClick={() => setGuestCartDrawerOpen(false)}
+                    aria-label="Close order panel"
+                  >
+                    x
+                  </button>
+                </div>
+
+                <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+                  <div className="grid gap-3">
+                    {guestCartItems.length > 0 ? (
+                      guestCartItems.map((item) => {
+                        const isMutating = guestCartMutatingIds.includes(item.id);
+                        return (
+                          <article
+                            key={item.id}
+                            className="rounded-xl border-2 border-[#2d1d13] bg-[#fffdf8] p-3 shadow-[3px_3px_0_0_#2d1d13]"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <h3 className="text-base font-extrabold text-[#1f1f1f]">{item.itemName}</h3>
+                                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#6b5b49]">
+                                  Quantity: {item.quantity}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                aria-label={`Remove ${item.itemName}`}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d14343] bg-[#fff1f1] text-[#b91c1c] disabled:opacity-50 sm:h-7 sm:w-7"
+                                disabled={isMutating}
+                                onClick={() => void deleteGuestCartItem(item)}
+                              >
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  aria-hidden="true"
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M3 6h18" />
+                                  <path d="M8 6V4h8v2" />
+                                  <path d="M19 6l-1 14H6L5 6" />
+                                  <path d="M10 11v6M14 11v6" />
+                                </svg>
+                              </button>
+                            </div>
+
+                            <div className="mt-3 flex items-center justify-between gap-2">
+                              <p className="text-base font-black text-[#1f1f1f]">{formatEuro(item.lineTotal)}</p>
+                              <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-[#2d1d13] bg-[#fff9ef] p-1.5 sm:gap-1 sm:p-1">
+                                <button
+                                  type="button"
+                                  aria-label={`Decrease quantity for ${item.itemName}`}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#2d1d13] bg-white text-sm font-bold text-[#2d1d13] disabled:opacity-50 sm:h-7 sm:w-7"
+                                  disabled={isMutating || item.quantity <= 1}
+                                  onClick={() => void changeGuestCartItemQuantity(item, item.quantity - 1)}
+                                >
+                                  -
+                                </button>
+                                <span className="min-w-6 text-center text-sm font-extrabold text-[#1f1f1f]">{item.quantity}</span>
+                                <button
+                                  type="button"
+                                  aria-label={`Increase quantity for ${item.itemName}`}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-bold text-[var(--accent-ink)] disabled:opacity-50 sm:h-7 sm:w-7"
+                                  disabled={isMutating || item.quantity >= 20}
+                                  onClick={() => void changeGuestCartItemQuantity(item, item.quantity + 1)}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          </article>
+                        );
+                      })
+                    ) : (
+                      <p className="rounded-xl border-2 border-[#2d1d13] bg-[#fffdf8] p-3 text-sm text-[#4f3f2e]">
+                        Your order is empty.
+                      </p>
+                    )}
+                  </div>
+
+                  {guestCartActionError ? (
+                    <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {guestCartActionError}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 shrink-0 rounded-xl border-2 border-[#2d1d13] bg-[#fff9ef] p-4">
+                  <p className="flex items-center justify-between text-sm text-[#4f3f2e]">
+                    <span className="font-semibold">Items</span>
+                    <span className="font-bold">{guestCart.itemCount}</span>
+                  </p>
+                  <p className="mt-2 flex items-center justify-between text-lg font-black text-[#1f1f1f]">
+                    <span>Subtotal</span>
+                    <span>{formatEuro(guestCart.subtotal)}</span>
+                  </p>
+                  <div className="mt-4 rounded-xl border-2 border-[#2d1d13] bg-[#fffdf8] p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-extrabold text-[#1f1f1f]">Add comment for venue</p>
+                        {!isVenueCommentEditing ? (
+                          <p className="mt-1 text-sm text-[#5d5648]">
+                            {venueComment
+                              ? venueComment
+                              : "Special requests, allergies, dietary restrictions, or greeting text..."}
+                          </p>
+                        ) : null}
+                      </div>
+                      {!isVenueCommentEditing ? (
+                        <button
+                          type="button"
+                          className="rounded-lg border border-[#2d1d13] bg-[#fff9ef] px-2.5 py-1 text-xs font-semibold text-[#2d1d13] hover:bg-[#f6ead6]"
+                          onClick={startVenueCommentEdit}
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {isVenueCommentEditing ? (
+                      <div className="mt-2 grid gap-2">
+                        <textarea
+                          className="min-h-24 w-full rounded-lg border-2 border-[#2d1d13] bg-[#fff9ef] px-3 py-2 text-sm text-[#1f1f1f] placeholder:text-[#7b6e5c]"
+                          maxLength={280}
+                          value={venueCommentDraft}
+                          onChange={(event) => setVenueCommentDraft(event.target.value)}
+                          placeholder="Special requests, allergies, dietary restrictions, or greeting text..."
+                        />
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-[#7b6e5c]">{venueCommentDraft.length}/280</p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="rounded-lg border border-[#2d1d13] bg-[#fff9ef] px-3 py-1.5 text-xs font-semibold text-[#2d1d13] hover:bg-[#f6ead6]"
+                              onClick={cancelVenueCommentEdit}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[var(--accent-ink)] hover:bg-[#ea6b12]"
+                              onClick={saveVenueComment}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    <button
+                      type="button"
+                      className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--accent-ink)] hover:bg-[#ea6b12]"
+                      onClick={() => openAuthModal("login")}
+                    >
+                      Login to checkout
+                    </button>
+                  </div>
+                </div>
+              </aside>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {isClient && showMobileGuestOrderBar
+        ? createPortal(
+            <button
+              type="button"
+              onClick={() => setGuestCartDrawerOpen(true)}
+              className="fixed inset-x-4 bottom-4 z-[95] mx-auto flex max-w-md items-center justify-between gap-3 rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--accent-ink)] shadow-[0_8px_20px_rgba(0,0,0,0.28)] md:hidden"
+            >
+              <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#b35311] px-1 text-[11px] leading-none text-white">
+                {guestCart.itemCount}
+              </span>
+              <span className="flex-1 text-left">View order</span>
+              <span className="font-bold">{formatEuro(guestCart.subtotal)}</span>
+            </button>,
+            document.body,
+          )
+        : null}
     </header>
   );
 }
+
 

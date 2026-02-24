@@ -42,3 +42,6 @@ dev-start.err
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# random files
+../ignore.txt

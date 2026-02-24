@@ -1,0 +1,1 @@
+ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=yes -o ExitOnForwardFailure=yes -o ConnectTimeout=10 -N -L 127.0.0.1:3307:foodapp-db.c9gk0cmy636u.eu-north-1.rds.amazonaws.com:3306 -i "$HOME\Downloads\foodapp-ec2-ke.pem" ec2-user@13.60.210.250

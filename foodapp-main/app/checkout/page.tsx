@@ -272,10 +272,10 @@ export default function CheckoutPage() {
                 {pending ? "Calculating..." : "Recalculate summary"}
               </button>
               <Link
-                href="/cart"
+                href="/menu"
                 className="rounded-lg border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
               >
-                Back to cart
+                Back to menu
               </Link>
             </div>
           </article>
