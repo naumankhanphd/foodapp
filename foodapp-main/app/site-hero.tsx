@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { GoogleAuthButton } from "@/components/google-auth-button";
+import { CART_UPDATED_EVENT, dispatchCartUpdated } from "@/lib/cart/events";
 
 const navItems = [
   { key: "menu", href: "/menu", label: "Menu" },
@@ -104,6 +105,8 @@ export function SiteHero() {
   const [guestCartItems, setGuestCartItems] = useState<GuestCartItem[]>([]);
   const [guestCartDrawerOpen, setGuestCartDrawerOpen] = useState(false);
   const [guestCartMutatingIds, setGuestCartMutatingIds] = useState<string[]>([]);
+  const guestCartMutatingRef = useRef<Set<string>>(new Set());
+  const guestCartQueuedDeltasRef = useRef<Map<string, number>>(new Map());
   const [guestCartActionError, setGuestCartActionError] = useState("");
   const [venueComment, setVenueComment] = useState("");
   const [venueCommentDraft, setVenueCommentDraft] = useState("");
@@ -155,6 +158,7 @@ export function SiteHero() {
     if (itemCount <= 0) {
       setGuestCartDrawerOpen(false);
     }
+    return parsedItems;
   }, []);
 
   function setGuestCartItemMutating(itemId: string, pending: boolean) {
@@ -166,51 +170,120 @@ export function SiteHero() {
     });
   }
 
-  async function changeGuestCartItemQuantity(item: GuestCartItem, nextQuantity: number) {
-    if (nextQuantity < 1) {
+  function beginGuestCartMutation(itemId: string) {
+    if (guestCartMutatingRef.current.has(itemId)) {
+      return false;
+    }
+    guestCartMutatingRef.current.add(itemId);
+    setGuestCartItemMutating(itemId, true);
+    return true;
+  }
+
+  function finishGuestCartMutation(itemId: string) {
+    if (!guestCartMutatingRef.current.has(itemId)) {
+      return;
+    }
+    guestCartMutatingRef.current.delete(itemId);
+    setGuestCartItemMutating(itemId, false);
+  }
+
+  function queueGuestCartDelta(itemId: string, delta: number) {
+    const current = guestCartQueuedDeltasRef.current.get(itemId) || 0;
+    const next = current + delta;
+    if (next === 0) {
+      guestCartQueuedDeltasRef.current.delete(itemId);
+      return;
+    }
+    guestCartQueuedDeltasRef.current.set(itemId, next);
+  }
+
+  function consumeGuestCartDelta(itemId: string) {
+    const queued = guestCartQueuedDeltasRef.current.get(itemId) || 0;
+    guestCartQueuedDeltasRef.current.delete(itemId);
+    return queued;
+  }
+
+  function clampGuestQuantity(quantity: number) {
+    return Math.max(0, Math.min(20, quantity));
+  }
+
+  async function applyGuestCartQuantity(itemId: string, desiredQuantity: number) {
+    const response =
+      desiredQuantity <= 0
+        ? await fetch(`/api/cart/items/${itemId}`, { method: "DELETE" })
+        : await fetch(`/api/cart/items/${itemId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ quantity: desiredQuantity }),
+          });
+
+    const payload = (await response.json().catch(() => ({}))) as GuestCartApiPayload;
+    if (!response.ok) {
+      throw new Error(payload.message || "Unable to update quantity.");
+    }
+
+    const nextItems = applyGuestCartPayload(payload);
+    dispatchCartUpdated();
+    return nextItems;
+  }
+
+  async function changeGuestCartItemQuantity(item: GuestCartItem, delta: number) {
+    if (delta === 0) {
+      return;
+    }
+    if (!beginGuestCartMutation(item.id)) {
+      queueGuestCartDelta(item.id, delta);
       return;
     }
 
     setGuestCartActionError("");
-    setGuestCartItemMutating(item.id, true);
     try {
-      const response = await fetch(`/api/cart/items/${item.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity: nextQuantity }),
-      });
+      let latestItems = guestCartItems;
+      let pendingDelta = delta;
 
-      const payload = (await response.json().catch(() => ({}))) as GuestCartApiPayload;
-      if (!response.ok) {
-        throw new Error(payload.message || "Unable to update quantity.");
+      while (pendingDelta !== 0) {
+        const liveItem = latestItems.find((entry) => entry.id === item.id);
+        if (!liveItem) {
+          break;
+        }
+
+        const targetQuantity = clampGuestQuantity(liveItem.quantity + pendingDelta);
+        if (targetQuantity === liveItem.quantity) {
+          pendingDelta = consumeGuestCartDelta(item.id);
+          continue;
+        }
+
+        latestItems = await applyGuestCartQuantity(item.id, targetQuantity);
+        pendingDelta = consumeGuestCartDelta(item.id);
       }
-
-      applyGuestCartPayload(payload);
     } catch (caught) {
       setGuestCartActionError(caught instanceof Error ? caught.message : "Unable to update quantity.");
     } finally {
-      setGuestCartItemMutating(item.id, false);
+      finishGuestCartMutation(item.id);
+      const trailingDelta = consumeGuestCartDelta(item.id);
+      if (trailingDelta !== 0) {
+        const sign = trailingDelta > 0 ? 1 : -1;
+        const remainder = trailingDelta - sign;
+        if (remainder !== 0) {
+          queueGuestCartDelta(item.id, remainder);
+        }
+        void changeGuestCartItemQuantity(item, sign);
+      }
     }
   }
 
   async function deleteGuestCartItem(item: GuestCartItem) {
+    if (!beginGuestCartMutation(item.id)) {
+      return;
+    }
+    guestCartQueuedDeltasRef.current.delete(item.id);
     setGuestCartActionError("");
-    setGuestCartItemMutating(item.id, true);
     try {
-      const response = await fetch(`/api/cart/items/${item.id}`, {
-        method: "DELETE",
-      });
-
-      const payload = (await response.json().catch(() => ({}))) as GuestCartApiPayload;
-      if (!response.ok) {
-        throw new Error(payload.message || "Unable to remove item.");
-      }
-
-      applyGuestCartPayload(payload);
+      await applyGuestCartQuantity(item.id, 0);
     } catch (caught) {
       setGuestCartActionError(caught instanceof Error ? caught.message : "Unable to remove item.");
     } finally {
-      setGuestCartItemMutating(item.id, false);
+      finishGuestCartMutation(item.id);
     }
   }
 
@@ -270,6 +343,8 @@ export function SiteHero() {
           ? current
           : { itemCount: 0, subtotal: 0 },
       );
+      guestCartMutatingRef.current.clear();
+      guestCartQueuedDeltasRef.current.clear();
       setGuestCartItems((current) => (current.length === 0 ? current : []));
       setGuestCartMutatingIds((current) => (current.length === 0 ? current : []));
       setGuestCartActionError("");
@@ -303,12 +378,17 @@ export function SiteHero() {
     intervalId = setInterval(() => {
       void loadGuestCart();
     }, 3000);
+    const onCartUpdated = () => {
+      void loadGuestCart();
+    };
+    window.addEventListener(CART_UPDATED_EVENT, onCartUpdated);
 
     return () => {
       cancelled = true;
       if (intervalId) {
         clearInterval(intervalId);
       }
+      window.removeEventListener(CART_UPDATED_EVENT, onCartUpdated);
     };
   }, [applyGuestCartPayload, pathname, user]);
 
@@ -917,16 +997,16 @@ export function SiteHero() {
                 aria-label="Close order panel"
                 onClick={() => setGuestCartDrawerOpen(false)}
               />
-              <aside className="absolute bottom-0 left-0 right-0 flex max-h-[88vh] min-h-0 flex-col overflow-hidden rounded-t-[24px] border-x-[3px] border-t-[3px] border-[#2d1d13] bg-[linear-gradient(155deg,#fff4dd_0%,#f9ecd4_60%,#e7f6ef_100%)] p-5 shadow-[0_-10px_22px_rgba(0,0,0,0.32)] md:bottom-0 md:left-auto md:right-0 md:top-0 md:max-h-none md:w-full md:max-w-lg md:rounded-none md:border-x-0 md:border-y-0 md:border-l-[3px] md:shadow-[-8px_0_0_#2d1d13]">
+              <aside className="absolute bottom-0 left-0 right-0 flex h-[90vh] max-h-[90vh] min-h-0 flex-col overflow-hidden rounded-t-[24px] border-x-[3px] border-t-[3px] border-[#2d1d13] bg-[linear-gradient(155deg,#fff4dd_0%,#f9ecd4_60%,#e7f6ef_100%)] p-5 shadow-[0_-10px_22px_rgba(0,0,0,0.32)] md:bottom-0 md:left-auto md:right-0 md:top-0 md:h-auto md:max-h-none md:w-full md:max-w-lg md:rounded-none md:border-x-0 md:border-y-0 md:border-l-[3px] md:shadow-[-8px_0_0_#2d1d13]">
                 <div className="flex shrink-0 items-center justify-between">
                   <h2 className="text-3xl font-black text-[#1f1f1f]">Your order</h2>
                   <button
                     type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#2d1d13] bg-[#fff9ef] text-xl font-bold text-[#2d1d13] hover:bg-[#f6ead6]"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#2d1d13] bg-[#fff9ef] text-2xl font-bold leading-none text-[#2d1d13] hover:bg-[#f6ead6]"
                     onClick={() => setGuestCartDrawerOpen(false)}
                     aria-label="Close order panel"
                   >
-                    x
+                    &times;
                   </button>
                 </div>
 
@@ -979,8 +1059,8 @@ export function SiteHero() {
                                   type="button"
                                   aria-label={`Decrease quantity for ${item.itemName}`}
                                   className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#2d1d13] bg-white text-sm font-bold text-[#2d1d13] disabled:opacity-50 sm:h-7 sm:w-7"
-                                  disabled={isMutating || item.quantity <= 1}
-                                  onClick={() => void changeGuestCartItemQuantity(item, item.quantity - 1)}
+                                  disabled={item.quantity <= 1}
+                                  onClick={() => void changeGuestCartItemQuantity(item, -1)}
                                 >
                                   -
                                 </button>
@@ -989,8 +1069,8 @@ export function SiteHero() {
                                   type="button"
                                   aria-label={`Increase quantity for ${item.itemName}`}
                                   className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-bold text-[var(--accent-ink)] disabled:opacity-50 sm:h-7 sm:w-7"
-                                  disabled={isMutating || item.quantity >= 20}
-                                  onClick={() => void changeGuestCartItemQuantity(item, item.quantity + 1)}
+                                  disabled={item.quantity >= 20}
+                                  onClick={() => void changeGuestCartItemQuantity(item, 1)}
                                 >
                                   +
                                 </button>

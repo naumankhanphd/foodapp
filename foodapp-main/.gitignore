@@ -37,7 +37,7 @@ dev-start.err
 .env*
 
 # vercel
-.vercel
+.vercelnpm run build
 
 # typescript
 *.tsbuildinfo

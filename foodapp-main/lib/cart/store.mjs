@@ -158,12 +158,20 @@ function sortIds(ids) {
 async function resolveItemOrThrow(itemId) {
   try {
     return await getPublicItemDetail(itemId);
-  } catch {
-    throw new CartValidationError(
-      "Menu item is unavailable. Please refresh your cart.",
-      409,
-      "ITEM_UNAVAILABLE",
-    );
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error.code === "ITEM_NOT_FOUND" || error.code === "CATEGORY_NOT_FOUND")
+    ) {
+      throw new CartValidationError(
+        "Menu item is unavailable. Please refresh your cart.",
+        409,
+        "ITEM_UNAVAILABLE",
+      );
+    }
+    throw error;
   }
 }
 

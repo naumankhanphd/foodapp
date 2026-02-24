@@ -5,7 +5,8 @@
 
 import Link from "next/link";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CART_UPDATED_EVENT, dispatchCartUpdated } from "@/lib/cart/events";
 
 import { SectionNav } from "./section-nav";
 
@@ -364,7 +365,46 @@ export function MenuSections({
 
 }: MenuSectionsProps) {
   const [cartLines, setCartLines] = useState<CartLine[]>([]);
+  const mutatingItemIdsRef = useRef<Set<string>>(new Set());
+  const queuedItemDeltasRef = useRef<Map<string, number>>(new Map());
   const isCartReady = true;
+
+  function beginItemMutation(itemId: string) {
+    if (mutatingItemIdsRef.current.has(itemId)) {
+      return false;
+    }
+
+    mutatingItemIdsRef.current.add(itemId);
+    return true;
+  }
+
+  function finishItemMutation(itemId: string) {
+    if (!mutatingItemIdsRef.current.has(itemId)) {
+      return;
+    }
+
+    mutatingItemIdsRef.current.delete(itemId);
+  }
+
+  function queueItemDelta(itemId: string, delta: number) {
+    const current = queuedItemDeltasRef.current.get(itemId) || 0;
+    const next = current + delta;
+    if (next === 0) {
+      queuedItemDeltasRef.current.delete(itemId);
+      return;
+    }
+    queuedItemDeltasRef.current.set(itemId, next);
+  }
+
+  function consumeQueuedItemDelta(itemId: string) {
+    const queued = queuedItemDeltasRef.current.get(itemId) || 0;
+    queuedItemDeltasRef.current.delete(itemId);
+    return queued;
+  }
+
+  function clampQuantity(value: number) {
+    return Math.max(0, Math.min(20, value));
+  }
 
 
   const loadCart = useCallback(async () => {
@@ -383,13 +423,13 @@ export function MenuSections({
 
     if (!response.ok) {
 
-      return;
+      return [] as CartLine[];
 
     }
 
-
-
-    setCartLines(Array.isArray(payload.cart?.items) ? payload.cart.items : []);
+    const nextItems = Array.isArray(payload.cart?.items) ? payload.cart.items : [];
+    setCartLines(nextItems);
+    return nextItems;
 
   }, []);
 
@@ -414,14 +454,17 @@ export function MenuSections({
       if (Array.isArray(nextItems)) {
 
         setCartLines(nextItems);
+        dispatchCartUpdated();
 
-        return;
+        return nextItems as CartLine[];
 
       }
 
 
 
-      await loadCart();
+      const reloaded = await loadCart();
+      dispatchCartUpdated();
+      return reloaded as CartLine[];
 
     },
 
@@ -446,11 +489,16 @@ export function MenuSections({
       void loadCart();
 
     };
+    const onCartUpdated = () => {
+      void loadCart();
+    };
 
     window.addEventListener("focus", onFocus);
+    window.addEventListener(CART_UPDATED_EVENT, onCartUpdated);
 
     return () => {
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener(CART_UPDATED_EVENT, onCartUpdated);
     };
   }, [adminMode, loadCart]);
 
@@ -535,6 +583,87 @@ export function MenuSections({
 
 
 
+  async function applyDeltaMutation(
+    item: MenuItem,
+    defaultOptionIds: string[],
+    baseLines: CartLine[],
+    delta: number,
+  ) {
+    if (delta === 0) {
+      return baseLines;
+    }
+
+    const targetLine = findTargetLine(baseLines, item, defaultOptionIds);
+
+    if (delta > 0) {
+      if (!targetLine) {
+        const createQuantity = clampQuantity(delta);
+        if (createQuantity <= 0) {
+          return baseLines;
+        }
+
+        const response = await fetch("/api/cart/items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itemId: item.id,
+            quantity: createQuantity,
+            selectedOptionIds: defaultOptionIds,
+            specialInstructions: "",
+          }),
+        });
+
+        return await applyMutationResponse(response);
+      }
+
+      const nextQuantity = clampQuantity(targetLine.quantity + delta);
+      if (nextQuantity === targetLine.quantity) {
+        return baseLines;
+      }
+
+      const response = await fetch(`/api/cart/items/${targetLine.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quantity: nextQuantity,
+          selectedOptionIds: targetLine.selectedOptionIds,
+          specialInstructions: targetLine.specialInstructions,
+        }),
+      });
+
+      return await applyMutationResponse(response);
+    }
+
+    if (!targetLine) {
+      return baseLines;
+    }
+
+    const nextQuantity = targetLine.quantity + delta;
+    if (nextQuantity <= 0) {
+      const response = await fetch(`/api/cart/items/${targetLine.id}`, {
+        method: "DELETE",
+      });
+      return await applyMutationResponse(response);
+    }
+
+    const clampedNextQuantity = clampQuantity(nextQuantity);
+    if (clampedNextQuantity === targetLine.quantity) {
+      return baseLines;
+    }
+
+    const response = await fetch(`/api/cart/items/${targetLine.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        quantity: clampedNextQuantity,
+        selectedOptionIds: targetLine.selectedOptionIds,
+        specialInstructions: targetLine.specialInstructions,
+      }),
+    });
+
+    return await applyMutationResponse(response);
+  }
+
   async function mutateItemCount(item: MenuItem, direction: "inc" | "dec") {
     const defaultOptionIds = getDefaultOptionIdsForQuickAdd(item.modifierGroups);
     if (!defaultOptionIds) {
@@ -542,120 +671,37 @@ export function MenuSections({
       return;
     }
 
+    const delta = direction === "inc" ? 1 : -1;
+    if (!beginItemMutation(item.id)) {
+      queueItemDelta(item.id, delta);
+      return;
+    }
+
     try {
-      const previousLines = cartLines;
-      const targetLine = findTargetLine(previousLines, item, defaultOptionIds);
+      let latestLines = cartLines;
+      latestLines = await applyDeltaMutation(item, defaultOptionIds, latestLines, delta);
 
-      if (direction === "inc" && targetLine) {
-        setCartLines(
-          previousLines.map((line) =>
-            line.id === targetLine.id
-              ? {
-                  ...line,
-                  quantity: line.quantity + 1,
-                }
-              : line,
-          ),
-        );
-      }
-
-      if (direction === "dec" && targetLine) {
-        if (targetLine.quantity <= 1) {
-          setCartLines(previousLines.filter((line) => line.id !== targetLine.id));
-        } else {
-          setCartLines(
-            previousLines.map((line) =>
-              line.id === targetLine.id
-                ? {
-                    ...line,
-                    quantity: line.quantity - 1,
-                  }
-                : line,
-            ),
-          );
+      while (true) {
+        const queuedDelta = consumeQueuedItemDelta(item.id);
+        if (queuedDelta === 0) {
+          break;
         }
-      }
-
-      if (direction === "inc") {
-        if (!targetLine) {
-          const response = await fetch("/api/cart/items", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              itemId: item.id,
-              quantity: 1,
-
-              selectedOptionIds: defaultOptionIds,
-
-              specialInstructions: "",
-
-            }),
-
-          });
-
-          await applyMutationResponse(response);
-
-        } else {
-
-          const response = await fetch(`/api/cart/items/${targetLine.id}`, {
-
-            method: "PATCH",
-
-            headers: { "Content-Type": "application/json" },
-
-            body: JSON.stringify({
-
-              quantity: targetLine.quantity + 1,
-
-              selectedOptionIds: targetLine.selectedOptionIds,
-
-              specialInstructions: targetLine.specialInstructions,
-
-            }),
-
-          });
-
-          await applyMutationResponse(response);
-
-        }
-
-      }
-
-      if (direction === "dec" && targetLine) {
-        if (targetLine.quantity <= 1) {
-          const response = await fetch(`/api/cart/items/${targetLine.id}`, {
-            method: "DELETE",
-          });
-
-          await applyMutationResponse(response);
-
-        } else {
-
-          const response = await fetch(`/api/cart/items/${targetLine.id}`, {
-
-            method: "PATCH",
-
-            headers: { "Content-Type": "application/json" },
-
-            body: JSON.stringify({
-
-              quantity: targetLine.quantity - 1,
-
-              selectedOptionIds: targetLine.selectedOptionIds,
-
-              specialInstructions: targetLine.specialInstructions,
-
-            }),
-
-          });
-
-          await applyMutationResponse(response);
-
-        }
+        latestLines = await applyDeltaMutation(item, defaultOptionIds, latestLines, queuedDelta);
       }
     } catch {
       await loadCart();
       // Keep control silent on quick interactions.
+    } finally {
+      finishItemMutation(item.id);
+      const trailingDelta = consumeQueuedItemDelta(item.id);
+      if (trailingDelta !== 0) {
+        const sign = trailingDelta > 0 ? 1 : -1;
+        const remainder = trailingDelta - sign;
+        if (remainder !== 0) {
+          queueItemDelta(item.id, remainder);
+        }
+        void mutateItemCount(item, sign > 0 ? "inc" : "dec");
+      }
     }
   }
 
@@ -922,7 +968,7 @@ export function MenuSections({
 
                   <article
 
-                    className={`relative flex h-full flex-col rounded-[14px] border-[2px] border-[#2d1d13] p-2.5 shadow-[3px_3px_0_0_#2d1d13] sm:rounded-[16px] sm:border-[3px] sm:p-3 sm:shadow-[4px_4px_0_0_#2d1d13] ${
+                    className={`relative flex h-full flex-col rounded-[12px] border-[2px] border-[#2d1d13] p-2 shadow-[2px_2px_0_0_#2d1d13] sm:rounded-[16px] sm:border-[3px] sm:p-3 sm:shadow-[4px_4px_0_0_#2d1d13] ${
 
                       isAvailable
 
@@ -938,14 +984,14 @@ export function MenuSections({
                       <Link
                         href={`/menu/${item.id}`}
                         aria-label={`Open details for ${item.name}`}
-                        className="absolute inset-0 z-10 rounded-[20px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                        className="absolute inset-0 z-10 rounded-[12px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] sm:rounded-[16px]"
                       >
                         <span className="sr-only">Open details for {item.name}</span>
                       </Link>
                     ) : null}
                     <div className={`${isAvailable ? "" : "grayscale"}`}>
-                      <div className="grid grid-cols-[minmax(0,1fr)_160px] items-start gap-2.5">
-                        <div className="order-2 relative h-[120px] overflow-hidden rounded-lg border-2 border-[#2d1d13] bg-[#fff7ea]">
+                      <div className="grid grid-cols-[minmax(0,1fr)_132px] items-start gap-2 sm:grid-cols-[minmax(0,1fr)_160px] sm:gap-2.5">
+                        <div className="order-2 relative h-[96px] overflow-hidden rounded-lg border-2 border-[#2d1d13] bg-[#fff7ea] sm:h-[120px]">
                           {item.imageUrls[0] ? (
                                                         <img
                               src={item.imageUrls[0]}
@@ -963,12 +1009,12 @@ export function MenuSections({
                           )}
                         </div>
 
-                        <div className="order-1 min-w-0 grid min-h-[120px] grid-rows-[auto_1fr_auto] gap-1">
-                          <h2 className="truncate text-[0.98rem] font-extrabold leading-tight text-[#1f1f1f]">
+                        <div className="order-1 min-w-0 grid min-h-[96px] grid-rows-[auto_1fr_auto] gap-1 sm:min-h-[120px]">
+                          <h2 className="truncate text-[0.92rem] font-extrabold leading-tight text-[#1f1f1f] sm:text-[0.98rem]">
                             {item.name}
                           </h2>
 
-                          <p className="h-[2.3rem] overflow-hidden text-[0.92rem] leading-[1.15rem] text-[#8a470f] line-clamp-2">
+                          <p className="h-[2rem] overflow-hidden text-[0.85rem] leading-[1rem] text-[#8a470f] line-clamp-2 sm:h-[2.3rem] sm:text-[0.92rem] sm:leading-[1.15rem]">
                             {showDescription ? item.description : "\u00A0"}
                           </p>
 
@@ -983,7 +1029,7 @@ export function MenuSections({
                                   void onAdminEditItem?.(item.id);
                                 }}
                                 aria-label={`Edit ${item.name}`}
-                                className="relative z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="relative z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60 sm:h-10 sm:w-10"
                                 disabled={!onAdminEditItem}
                               >
                                 <svg
@@ -1007,17 +1053,17 @@ export function MenuSections({
                                   onClick={() => void mutateItemCount(item, "dec")}
                                   disabled={!isCartReady || !isAvailable}
                                   aria-label={`Decrease ${item.name}`}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--line)] text-base font-bold text-[#9f430e] hover:bg-[#fff3e6] disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--line)] text-sm font-bold text-[#9f430e] hover:bg-[#fff3e6] disabled:cursor-not-allowed disabled:opacity-60 sm:h-8 sm:w-8 sm:text-base"
                                 >
                                   -
                                 </button>
-                                <span className="min-w-5 text-center text-sm font-extrabold text-[#1f1f1f]">{quantity}</span>
+                                <span className="min-w-5 text-center text-xs font-extrabold text-[#1f1f1f] sm:text-sm">{quantity}</span>
                                 <button
                                   type="button"
                                   onClick={() => void mutateItemCount(item, "inc")}
                                   disabled={!isCartReady || !isAvailable}
                                   aria-label={`Increase ${item.name}`}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-base font-bold text-[var(--accent-ink)] hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-bold text-[var(--accent-ink)] hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60 sm:h-8 sm:w-8 sm:text-base"
                                 >
                                   +
                                 </button>
@@ -1028,11 +1074,11 @@ export function MenuSections({
                                 onClick={() => void mutateItemCount(item, "inc")}
                                 disabled={!isCartReady || !isAvailable}
                                 aria-label={`Add ${item.name} to cart`}
-                                className="relative z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="relative z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60 sm:h-10 sm:w-10"
                               >
                                 <svg
                                   viewBox="0 0 24 24"
-                                  className="h-6 w-6"
+                                  className="h-5 w-5 sm:h-6 sm:w-6"
                                   fill="none"
                                   stroke="currentColor"
                                   strokeWidth="2.8"
