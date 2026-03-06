@@ -1,15 +1,7 @@
-﻿import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { db } from "../db/client.ts";
-import {
-  drinkMenuItems,
-  imagesMetadata,
-  kebabitMenuItems,
-  menuCategories,
-  pizzaMenuItems,
-  salaatitMenuItems,
-  starterMenuItems,
-} from "../db/menu-schema.ts";
-import { MenuValidationError } from "./validation.mjs";
+import { imagesMetadata, menuCategories, menuItems } from "../db/menu-schema.ts";
+import { MenuValidationError } from "./validation.ts";
 
 type MenuCategory = {
   id: string;
@@ -36,11 +28,8 @@ type ModifierGroup = {
   options: ModifierOption[];
 };
 
-type ItemSource = "starters" | "kebabit" | "salaatit" | "drinks" | "pizzat";
-
 type DbMenuItem = {
   id: string;
-  source: ItemSource;
   categoryId: string;
   categorySlug: string;
   categoryName: string;
@@ -50,6 +39,8 @@ type DbMenuItem = {
   imageUrls: string[];
   basePrice: number;
   familyPrice: number | null;
+  focalX: number | null;
+  focalY: number | null;
   prepMinutes: number;
   isActive: boolean;
   updatedAt: string;
@@ -64,6 +55,8 @@ type PublicMenuItem = {
   description: string;
   imageUrls: string[];
   basePrice: number;
+  focalX: number | null;
+  focalY: number | null;
   prepMinutes: number;
   isActive: boolean;
   availability: "active" | "inactive";
@@ -114,6 +107,8 @@ type AdminItem = {
   imageUrls: string[];
   basePrice: number;
   familyPrice?: number;
+  focalX: number | null;
+  focalY: number | null;
   prepMinutes: number;
   isActive: boolean;
   updatedAt: string;
@@ -159,15 +154,9 @@ function isAbsoluteImageUrl(value: string) {
 
 function normalizeImageLink(imageLink: string) {
   const trimmed = String(imageLink || "").trim();
-  if (!trimmed) {
-    return null;
-  }
-  if (isAbsoluteImageUrl(trimmed)) {
-    return trimmed;
-  }
-  if (trimmed.startsWith("//")) {
-    return `https:${trimmed}`;
-  }
+  if (!trimmed) return null;
+  if (isAbsoluteImageUrl(trimmed)) return trimmed;
+  if (trimmed.startsWith("//")) return `https:${trimmed}`;
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
@@ -186,47 +175,29 @@ function toImageNameFromLink(imageLink: string) {
 
 function toPublicImageUrls(imageLink: unknown) {
   const raw = String(imageLink || "").trim();
-  if (!raw) {
-    return [];
-  }
-  if (isAbsoluteImageUrl(raw)) {
-    return [raw];
-  }
-  if (raw.startsWith("//")) {
-    return [`https:${raw}`];
-  }
-  if (raw.startsWith("/") && ASSET_BASE_URL) {
-    return [`${ASSET_BASE_URL}${raw}`];
-  }
+  if (!raw) return [];
+  if (isAbsoluteImageUrl(raw)) return [raw];
+  if (raw.startsWith("//")) return [`https:${raw}`];
+  if (raw.startsWith("/") && ASSET_BASE_URL) return [`${ASSET_BASE_URL}${raw}`];
   return [raw.startsWith("/") ? raw : `/${raw}`];
 }
 
 function inferImageType(imageName: string) {
   const lower = imageName.split("?")[0].split("#")[0].toLowerCase();
-  if (lower.endsWith(".png")) {
-    return "image/png";
-  }
-  if (lower.endsWith(".webp")) {
-    return "image/webp";
-  }
-  if (lower.endsWith(".gif")) {
-    return "image/gif";
-  }
-  if (lower.endsWith(".avif")) {
-    return "image/avif";
-  }
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".avif")) return "image/avif";
   return "image/jpeg";
 }
 
-async function resolveImageMetadataId(imageUrls: string[] | undefined): Promise<number | null | undefined> {
-  if (imageUrls === undefined) {
-    return undefined;
-  }
+async function resolveImageMetadataId(
+  imageUrls: string[] | undefined,
+): Promise<number | null | undefined> {
+  if (imageUrls === undefined) return undefined;
 
   const firstLink = normalizeImageLink(imageUrls[0] || "");
-  if (!firstLink) {
-    return null;
-  }
+  if (!firstLink) return null;
 
   const [existing] = await db
     .select({ id: imagesMetadata.id })
@@ -234,9 +205,7 @@ async function resolveImageMetadataId(imageUrls: string[] | undefined): Promise<
     .where(eq(imagesMetadata.imageLink, firstLink))
     .limit(1);
 
-  if (existing?.id) {
-    return existing.id;
-  }
+  if (existing?.id) return existing.id;
 
   const imageName = toImageNameFromLink(firstLink);
   const insertResult = await db.insert(imagesMetadata).values({
@@ -248,9 +217,7 @@ async function resolveImageMetadataId(imageUrls: string[] | undefined): Promise<
   });
 
   const insertId = Number((insertResult as { insertId?: unknown }).insertId);
-  if (Number.isFinite(insertId) && insertId > 0) {
-    return insertId;
-  }
+  if (Number.isFinite(insertId) && insertId > 0) return insertId;
 
   const [inserted] = await db
     .select({ id: imagesMetadata.id })
@@ -271,27 +238,15 @@ function buildPizzaSizeGroup(itemId: string, largePrice: number, familyPrice: nu
       minSelect: 1,
       maxSelect: 1,
       options: [
-        {
-          id: `opt-${itemId}-large`,
-          name: "Large",
-          priceDelta: 0,
-          isActive: true,
-        },
-        {
-          id: `opt-${itemId}-family`,
-          name: "Family",
-          priceDelta: delta,
-          isActive: true,
-        },
+        { id: `opt-${itemId}-large`, name: "Large", priceDelta: 0, isActive: true },
+        { id: `opt-${itemId}-family`, name: "Family", priceDelta: delta, isActive: true },
       ],
     },
   ];
 }
 
-function toModifierGroups(item: DbMenuItem) {
-  if (item.familyPrice === null) {
-    return [];
-  }
+function toModifierGroups(item: DbMenuItem): ModifierGroup[] {
+  if (item.familyPrice === null) return [];
   return buildPizzaSizeGroup(item.id, item.basePrice, item.familyPrice);
 }
 
@@ -305,6 +260,8 @@ function toPublicItem(item: DbMenuItem): PublicMenuItem {
     description: item.description,
     imageUrls: item.imageUrls,
     basePrice: item.basePrice,
+    focalX: item.focalX,
+    focalY: item.focalY,
     prepMinutes: item.prepMinutes,
     isActive: item.isActive,
     availability: item.isActive ? "active" : "inactive",
@@ -321,16 +278,16 @@ function toAdminItem(item: DbMenuItem): AdminItem {
     description: item.description,
     imageUrls: item.imageUrls,
     basePrice: item.basePrice,
+    focalX: item.focalX,
+    focalY: item.focalY,
     prepMinutes: item.prepMinutes,
     isActive: item.isActive,
     updatedAt: item.updatedAt,
     modifierGroups: toModifierGroups(item),
   };
-
   if (item.familyPrice !== null) {
     mapped.familyPrice = item.familyPrice;
   }
-
   return mapped;
 }
 
@@ -343,18 +300,13 @@ function toPublicDetail(item: DbMenuItem): PublicItemDetail {
     basePrice: item.basePrice,
     prepMinutes: item.prepMinutes,
     availability: "active",
-    category: {
-      id: item.categoryId,
-      name: item.categoryName,
-    },
+    category: { id: item.categoryId, name: item.categoryName },
     modifierGroups: toModifierGroups(item),
   };
 }
 
 function matchSearch(item: DbMenuItem, normalizedSearch: string) {
-  if (!normalizedSearch) {
-    return true;
-  }
+  if (!normalizedSearch) return true;
   return (
     item.name.toLowerCase().includes(normalizedSearch) ||
     item.description.toLowerCase().includes(normalizedSearch) ||
@@ -378,7 +330,6 @@ function paginate<T>(records: T[], page: number, pageSize: number) {
   const normalizedPage = Math.min(Math.max(page, 1), totalPages);
   const startIndex = (normalizedPage - 1) * pageSize;
   const data = records.slice(startIndex, startIndex + pageSize);
-
   return {
     data,
     pagination: {
@@ -404,292 +355,151 @@ async function listAllCategories() {
     })
     .from(menuCategories)
     .orderBy(asc(menuCategories.sortOrder), asc(menuCategories.name));
-
   return rows as MenuCategory[];
 }
 
 function categoryMapById(categories: MenuCategory[]) {
   const map = new Map<string, MenuCategory>();
-  for (const category of categories) {
-    map.set(category.id, category);
-  }
+  for (const cat of categories) map.set(cat.id, cat);
   return map;
 }
 
 function supportsCategory(targetCategoryId: string | undefined, categoryId: string) {
-  if (!targetCategoryId) {
-    return true;
-  }
-  return targetCategoryId === categoryId;
+  return !targetCategoryId || targetCategoryId === categoryId;
 }
 
-async function loadAllItems(categories: MenuCategory[], options: { categoryId?: string; includeInactive?: boolean } = {}) {
+function rowToDbMenuItem(
+  row: {
+    id: string;
+    categoryId: string;
+    name: string;
+    description: string | null;
+    imageLink: string | null;
+    basePrice: string | null;
+    largePrice: string | null;
+    familyPrice: string | null;
+    imageFocalX: string | null;
+    imageFocalY: string | null;
+    prepMinutes: number;
+    isActive: boolean;
+    updatedAt: string;
+  },
+  category: MenuCategory,
+): DbMenuItem {
+  const isDualPrice = row.largePrice !== null;
+  return {
+    id: row.id,
+    categoryId: row.categoryId,
+    categorySlug: category.slug,
+    categoryName: category.name,
+    categorySortOrder: category.sortOrder,
+    name: row.name,
+    description: row.description ?? "",
+    imageUrls: toPublicImageUrls(row.imageLink),
+    basePrice: isDualPrice ? toNumber(row.largePrice) : toNumber(row.basePrice),
+    familyPrice: row.familyPrice !== null ? toNumber(row.familyPrice) : null,
+    focalX: row.imageFocalX !== null ? toNumber(row.imageFocalX) : null,
+    focalY: row.imageFocalY !== null ? toNumber(row.imageFocalY) : null,
+    prepMinutes: row.prepMinutes,
+    isActive: row.isActive,
+    updatedAt: row.updatedAt,
+  };
+}
+
+async function loadAllItems(
+  categories: MenuCategory[],
+  options: { categoryId?: string; includeInactive?: boolean } = {},
+) {
   const includeInactive = options.includeInactive === true;
   const byId = categoryMapById(categories);
 
-  const [starterRows, kebabitRows, salaatitRows, drinkRows, pizzaRows] = await Promise.all([
-    db
-      .select({
-        id: starterMenuItems.id,
-        categoryId: starterMenuItems.categoryId,
-        name: starterMenuItems.name,
-        description: starterMenuItems.description,
-        imageLink: imagesMetadata.imageLink,
-        price: starterMenuItems.price,
-        prepMinutes: starterMenuItems.prepMinutes,
-        isActive: starterMenuItems.isActive,
-        updatedAt: starterMenuItems.updatedAt,
-      })
-      .from(starterMenuItems)
-      .leftJoin(imagesMetadata, eq(starterMenuItems.imageMetadataId, imagesMetadata.id)),
-    db
-      .select({
-        id: kebabitMenuItems.id,
-        categoryId: kebabitMenuItems.categoryId,
-        name: kebabitMenuItems.name,
-        imageLink: imagesMetadata.imageLink,
-        price: kebabitMenuItems.price,
-        prepMinutes: kebabitMenuItems.prepMinutes,
-        isActive: kebabitMenuItems.isActive,
-        updatedAt: kebabitMenuItems.updatedAt,
-      })
-      .from(kebabitMenuItems)
-      .leftJoin(imagesMetadata, eq(kebabitMenuItems.imageMetadataId, imagesMetadata.id)),
-    db
-      .select({
-        id: salaatitMenuItems.id,
-        categoryId: salaatitMenuItems.categoryId,
-        name: salaatitMenuItems.name,
-        description: salaatitMenuItems.description,
-        imageLink: imagesMetadata.imageLink,
-        price: salaatitMenuItems.price,
-        prepMinutes: salaatitMenuItems.prepMinutes,
-        isActive: salaatitMenuItems.isActive,
-        updatedAt: salaatitMenuItems.updatedAt,
-      })
-      .from(salaatitMenuItems)
-      .leftJoin(imagesMetadata, eq(salaatitMenuItems.imageMetadataId, imagesMetadata.id)),
-    db
-      .select({
-        id: drinkMenuItems.id,
-        categoryId: drinkMenuItems.categoryId,
-        name: drinkMenuItems.name,
-        description: drinkMenuItems.description,
-        imageLink: imagesMetadata.imageLink,
-        price: drinkMenuItems.price,
-        prepMinutes: drinkMenuItems.prepMinutes,
-        isActive: drinkMenuItems.isActive,
-        updatedAt: drinkMenuItems.updatedAt,
-      })
-      .from(drinkMenuItems)
-      .leftJoin(imagesMetadata, eq(drinkMenuItems.imageMetadataId, imagesMetadata.id)),
-    db
-      .select({
-        id: pizzaMenuItems.id,
-        categoryId: pizzaMenuItems.categoryId,
-        name: pizzaMenuItems.name,
-        description: pizzaMenuItems.description,
-        imageLink: imagesMetadata.imageLink,
-        largePrice: pizzaMenuItems.largePrice,
-        familyPrice: pizzaMenuItems.familyPrice,
-        prepMinutes: pizzaMenuItems.prepMinutes,
-        isActive: pizzaMenuItems.isActive,
-        updatedAt: pizzaMenuItems.updatedAt,
-      })
-      .from(pizzaMenuItems)
-      .leftJoin(imagesMetadata, eq(pizzaMenuItems.imageMetadataId, imagesMetadata.id)),
-  ]);
+  const rows = await db
+    .select({
+      id: menuItems.id,
+      categoryId: menuItems.categoryId,
+      name: menuItems.name,
+      description: menuItems.description,
+      imageLink: imagesMetadata.imageLink,
+      basePrice: menuItems.basePrice,
+      largePrice: menuItems.largePrice,
+      familyPrice: menuItems.familyPrice,
+      imageFocalX: menuItems.imageFocalX,
+      imageFocalY: menuItems.imageFocalY,
+      prepMinutes: menuItems.prepMinutes,
+      isActive: menuItems.isActive,
+      updatedAt: menuItems.updatedAt,
+    })
+    .from(menuItems)
+    .leftJoin(imagesMetadata, eq(menuItems.imageMetadataId, imagesMetadata.id));
 
   const items: DbMenuItem[] = [];
-
-  for (const row of starterRows) {
+  for (const row of rows) {
     const category = byId.get(row.categoryId);
-    if (!category || !supportsCategory(options.categoryId, row.categoryId)) {
-      continue;
-    }
-    if (!includeInactive && (!category.isActive || !row.isActive)) {
-      continue;
-    }
-    items.push({
-      id: row.id,
-      source: "starters",
-      categoryId: row.categoryId,
-      categorySlug: category.slug,
-      categoryName: category.name,
-      categorySortOrder: category.sortOrder,
-      name: row.name,
-      description: row.description,
-      imageUrls: toPublicImageUrls(row.imageLink),
-      basePrice: toNumber(row.price),
-      familyPrice: null,
-      prepMinutes: row.prepMinutes,
-      isActive: row.isActive,
-      updatedAt: row.updatedAt,
-    });
+    if (!category || !supportsCategory(options.categoryId, row.categoryId)) continue;
+    if (!includeInactive && (!category.isActive || !row.isActive)) continue;
+    items.push(rowToDbMenuItem(row, category));
   }
-
-  for (const row of kebabitRows) {
-    const category = byId.get(row.categoryId);
-    if (!category || !supportsCategory(options.categoryId, row.categoryId)) {
-      continue;
-    }
-    if (!includeInactive && (!category.isActive || !row.isActive)) {
-      continue;
-    }
-    items.push({
-      id: row.id,
-      source: "kebabit",
-      categoryId: row.categoryId,
-      categorySlug: category.slug,
-      categoryName: category.name,
-      categorySortOrder: category.sortOrder,
-      name: row.name,
-      description: "",
-      imageUrls: toPublicImageUrls(row.imageLink),
-      basePrice: toNumber(row.price),
-      familyPrice: null,
-      prepMinutes: row.prepMinutes,
-      isActive: row.isActive,
-      updatedAt: row.updatedAt,
-    });
-  }
-
-  for (const row of salaatitRows) {
-    const category = byId.get(row.categoryId);
-    if (!category || !supportsCategory(options.categoryId, row.categoryId)) {
-      continue;
-    }
-    if (!includeInactive && (!category.isActive || !row.isActive)) {
-      continue;
-    }
-    items.push({
-      id: row.id,
-      source: "salaatit",
-      categoryId: row.categoryId,
-      categorySlug: category.slug,
-      categoryName: category.name,
-      categorySortOrder: category.sortOrder,
-      name: row.name,
-      description: row.description,
-      imageUrls: toPublicImageUrls(row.imageLink),
-      basePrice: toNumber(row.price),
-      familyPrice: null,
-      prepMinutes: row.prepMinutes,
-      isActive: row.isActive,
-      updatedAt: row.updatedAt,
-    });
-  }
-
-  for (const row of drinkRows) {
-    const category = byId.get(row.categoryId);
-    if (!category || !supportsCategory(options.categoryId, row.categoryId)) {
-      continue;
-    }
-    if (!includeInactive && (!category.isActive || !row.isActive)) {
-      continue;
-    }
-    items.push({
-      id: row.id,
-      source: "drinks",
-      categoryId: row.categoryId,
-      categorySlug: category.slug,
-      categoryName: category.name,
-      categorySortOrder: category.sortOrder,
-      name: row.name,
-      description: row.description,
-      imageUrls: toPublicImageUrls(row.imageLink),
-      basePrice: toNumber(row.price),
-      familyPrice: null,
-      prepMinutes: row.prepMinutes,
-      isActive: row.isActive,
-      updatedAt: row.updatedAt,
-    });
-  }
-
-  for (const row of pizzaRows) {
-    const category = byId.get(row.categoryId);
-    if (!category || !supportsCategory(options.categoryId, row.categoryId)) {
-      continue;
-    }
-    if (!includeInactive && (!category.isActive || !row.isActive)) {
-      continue;
-    }
-    items.push({
-      id: row.id,
-      source: "pizzat",
-      categoryId: row.categoryId,
-      categorySlug: category.slug,
-      categoryName: category.name,
-      categorySortOrder: category.sortOrder,
-      name: row.name,
-      description: row.description,
-      imageUrls: toPublicImageUrls(row.imageLink),
-      basePrice: toNumber(row.largePrice),
-      familyPrice: toNumber(row.familyPrice),
-      prepMinutes: row.prepMinutes,
-      isActive: row.isActive,
-      updatedAt: row.updatedAt,
-    });
-  }
-
   return items;
 }
 
-function assertModifierUnsupported() {
-  throw new MenuValidationError(
-    "Modifier groups/options are not supported with the current DB menu schema.",
-    400,
-    "MODIFIERS_NOT_SUPPORTED",
-  );
+async function findItemById(itemId: string): Promise<DbMenuItem | null> {
+  const categories = await listAllCategories();
+  const byId = categoryMapById(categories);
+
+  const rows = await db
+    .select({
+      id: menuItems.id,
+      categoryId: menuItems.categoryId,
+      name: menuItems.name,
+      description: menuItems.description,
+      imageLink: imagesMetadata.imageLink,
+      basePrice: menuItems.basePrice,
+      largePrice: menuItems.largePrice,
+      familyPrice: menuItems.familyPrice,
+      imageFocalX: menuItems.imageFocalX,
+      imageFocalY: menuItems.imageFocalY,
+      prepMinutes: menuItems.prepMinutes,
+      isActive: menuItems.isActive,
+      updatedAt: menuItems.updatedAt,
+    })
+    .from(menuItems)
+    .leftJoin(imagesMetadata, eq(menuItems.imageMetadataId, imagesMetadata.id))
+    .where(eq(menuItems.id, itemId))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+  const category = byId.get(row.categoryId);
+  if (!category) return null;
+  return rowToDbMenuItem(row, category);
+}
+
+async function countItemsByCategoryId() {
+  const rows = await db
+    .select({
+      categoryId: menuItems.categoryId,
+      total: sql<number>`count(*)`,
+    })
+    .from(menuItems)
+    .groupBy(menuItems.categoryId);
+
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.categoryId, Number(row.total));
+  return counts;
 }
 
 async function ensureCategory(categoryId: string) {
   const categories = await listAllCategories();
-  const category = categories.find((entry) => entry.id === categoryId);
+  const category = categories.find((c) => c.id === categoryId);
   if (!category) {
     throw new MenuValidationError("Category not found.", 404, "CATEGORY_NOT_FOUND");
   }
   return category;
 }
 
-function toSupportedSource(category: MenuCategory): ItemSource {
-  if (category.slug === "starters") {
-    return "starters";
-  }
-  if (category.slug === "kebabit") {
-    return "kebabit";
-  }
-  if (category.slug === "salaatit") {
-    return "salaatit";
-  }
-  if (category.slug === "drinks") {
-    return "drinks";
-  }
-  if (category.slug === "pizzat") {
-    return "pizzat";
-  }
-  throw new MenuValidationError(
-    `Category '${category.name}' is not mapped to a dedicated table in the redesigned menu schema.`,
-    400,
-    "CATEGORY_TABLE_NOT_SUPPORTED",
-  );
-}
-
-async function findItemById(itemId: string) {
-  const categories = await listAllCategories();
-  const items = await loadAllItems(categories, { includeInactive: true });
-  return items.find((entry) => entry.id === itemId) || null;
-}
-
-async function countItemsByCategoryId() {
-  const categories = await listAllCategories();
-  const items = await loadAllItems(categories, { includeInactive: true });
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    counts.set(item.categoryId, (counts.get(item.categoryId) || 0) + 1);
-  }
-  return counts;
-}
+// ---------------------------------------------------------------------------
+// Public DB functions
+// ---------------------------------------------------------------------------
 
 export async function listPublicMenuFromDb({
   search = "",
@@ -699,7 +509,7 @@ export async function listPublicMenuFromDb({
   categoryId?: string;
 } = {}): Promise<PublicMenuResponse> {
   const normalizedSearch = normalizeSearch(search);
-  const categories = (await listAllCategories()).filter((entry) => entry.isActive);
+  const categories = (await listAllCategories()).filter((c) => c.isActive);
 
   const items = (await loadAllItems(categories, { categoryId, includeInactive: true }))
     .filter((item) => matchSearch(item, normalizedSearch))
@@ -707,11 +517,11 @@ export async function listPublicMenuFromDb({
     .map(toPublicItem);
 
   return {
-    categories: categories.map((category) => ({
-      id: category.id,
-      name: category.name,
-      sortOrder: category.sortOrder,
-      isActive: category.isActive,
+    categories: categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      sortOrder: c.sortOrder,
+      isActive: c.isActive,
     })),
     items,
     search: String(search || "").trim(),
@@ -724,13 +534,12 @@ export async function getPublicItemDetailFromDb(itemId: string): Promise<PublicI
     throw new MenuValidationError("Menu item not found.", 404, "ITEM_NOT_FOUND");
   }
 
-  const categories = (await listAllCategories()).filter((entry) => entry.isActive);
+  const categories = (await listAllCategories()).filter((c) => c.isActive);
   const items = await loadAllItems(categories, { includeInactive: false });
-  const match = items.find((entry) => entry.id === normalized);
+  const match = items.find((item) => item.id === normalized);
   if (!match) {
     throw new MenuValidationError("Menu item not found.", 404, "ITEM_NOT_FOUND");
   }
-
   return toPublicDetail(match);
 }
 
@@ -740,28 +549,31 @@ export async function listAdminCategoriesFromDb({ search = "", page = 1, pageSiz
   const counts = await countItemsByCategoryId();
 
   const filtered = categories
-    .filter((category) => (normalizedSearch ? category.name.toLowerCase().includes(normalizedSearch) : true))
-    .map((category) => ({
-      id: category.id,
-      name: category.name,
-      sortOrder: category.sortOrder,
-      isActive: category.isActive,
-      updatedAt: category.updatedAt,
-      itemCount: counts.get(category.id) || 0,
+    .filter((c) => (normalizedSearch ? c.name.toLowerCase().includes(normalizedSearch) : true))
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      sortOrder: c.sortOrder,
+      isActive: c.isActive,
+      updatedAt: c.updatedAt,
+      itemCount: counts.get(c.id) || 0,
     }))
-    .sort((left, right) => {
-      if (left.sortOrder !== right.sortOrder) {
-        return left.sortOrder - right.sortOrder;
-      }
-      return left.name.localeCompare(right.name);
-    });
+    .sort((a, b) =>
+      a.sortOrder !== b.sortOrder ? a.sortOrder - b.sortOrder : a.name.localeCompare(b.name),
+    );
 
   return paginate(filtered, page, pageSize);
 }
 
-export async function createCategoryInDb(input: { name: string; sortOrder: number; isActive: boolean }) {
+export async function createCategoryInDb(input: {
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+}) {
   const categories = await listAllCategories();
-  const duplicateName = categories.find((entry) => entry.name.toLowerCase() === input.name.toLowerCase());
+  const duplicateName = categories.find(
+    (c) => c.name.toLowerCase() === input.name.toLowerCase(),
+  );
   if (duplicateName) {
     throw new MenuValidationError("Category with this name already exists.", 409, "CATEGORY_EXISTS");
   }
@@ -769,23 +581,18 @@ export async function createCategoryInDb(input: { name: string; sortOrder: numbe
   const baseSlug = toId(input.name);
   let slug = baseSlug;
   let suffix = 2;
-  while (categories.some((entry) => entry.slug === slug)) {
+  while (categories.some((c) => c.slug === slug)) {
     slug = `${baseSlug}-${suffix}`;
     suffix += 1;
   }
 
   let next = 1;
-  for (const category of categories) {
-    const matched = /^cat-(\d+)$/.exec(category.id);
-    if (!matched) {
-      continue;
-    }
+  for (const c of categories) {
+    const matched = /^cat-(\d+)$/.exec(c.id);
+    if (!matched) continue;
     const numeric = Number.parseInt(matched[1], 10);
-    if (Number.isFinite(numeric) && numeric >= next) {
-      next = numeric + 1;
-    }
+    if (Number.isFinite(numeric) && numeric >= next) next = numeric + 1;
   }
-
   const id = `cat-${String(next).padStart(3, "0")}`;
 
   await db.insert(menuCategories).values({
@@ -806,9 +613,12 @@ export async function createCategoryInDb(input: { name: string; sortOrder: numbe
   } satisfies AdminCategory;
 }
 
-export async function updateCategoryInDb(categoryId: string, patch: { name?: string; sortOrder?: number; isActive?: boolean }) {
+export async function updateCategoryInDb(
+  categoryId: string,
+  patch: { name?: string; sortOrder?: number; isActive?: boolean },
+) {
   const categories = await listAllCategories();
-  const current = categories.find((entry) => entry.id === categoryId);
+  const current = categories.find((c) => c.id === categoryId);
   if (!current) {
     throw new MenuValidationError("Category not found.", 404, "CATEGORY_NOT_FOUND");
   }
@@ -818,7 +628,7 @@ export async function updateCategoryInDb(categoryId: string, patch: { name?: str
   const nextIsActive = patch.isActive ?? current.isActive;
 
   const duplicate = categories.find(
-    (entry) => entry.id !== categoryId && entry.name.toLowerCase() === nextName.toLowerCase(),
+    (c) => c.id !== categoryId && c.name.toLowerCase() === nextName.toLowerCase(),
   );
   if (duplicate) {
     throw new MenuValidationError("Category with this name already exists.", 409, "CATEGORY_EXISTS");
@@ -828,10 +638,10 @@ export async function updateCategoryInDb(categoryId: string, patch: { name?: str
   if (patch.name && patch.name !== current.name) {
     const baseSlug = toId(nextName);
     slug = baseSlug;
-    let suffix = 2;
-    while (categories.some((entry) => entry.id !== categoryId && entry.slug === slug)) {
-      slug = `${baseSlug}-${suffix}`;
-      suffix += 1;
+    let sfx = 2;
+    while (categories.some((c) => c.id !== categoryId && c.slug === slug)) {
+      slug = `${baseSlug}-${sfx}`;
+      sfx += 1;
     }
   }
 
@@ -847,7 +657,6 @@ export async function updateCategoryInDb(categoryId: string, patch: { name?: str
     .where(eq(menuCategories.id, categoryId));
 
   const counts = await countItemsByCategoryId();
-
   return {
     id: categoryId,
     name: nextName,
@@ -859,48 +668,20 @@ export async function updateCategoryInDb(categoryId: string, patch: { name?: str
 }
 
 export async function deleteCategoryInDb(categoryId: string) {
-  const category = await ensureCategory(categoryId);
-  const source = toSupportedSource(category);
+  await ensureCategory(categoryId);
 
-  let count = 0;
-  if (source === "starters") {
-    const rows = await db
-      .select({ total: sql<number>`count(*)` })
-      .from(starterMenuItems)
-      .where(eq(starterMenuItems.categoryId, categoryId));
-    count = Number(rows[0]?.total || 0);
-  }
-  if (source === "kebabit") {
-    const rows = await db
-      .select({ total: sql<number>`count(*)` })
-      .from(kebabitMenuItems)
-      .where(eq(kebabitMenuItems.categoryId, categoryId));
-    count = Number(rows[0]?.total || 0);
-  }
-  if (source === "salaatit") {
-    const rows = await db
-      .select({ total: sql<number>`count(*)` })
-      .from(salaatitMenuItems)
-      .where(eq(salaatitMenuItems.categoryId, categoryId));
-    count = Number(rows[0]?.total || 0);
-  }
-  if (source === "drinks") {
-    const rows = await db
-      .select({ total: sql<number>`count(*)` })
-      .from(drinkMenuItems)
-      .where(eq(drinkMenuItems.categoryId, categoryId));
-    count = Number(rows[0]?.total || 0);
-  }
-  if (source === "pizzat") {
-    const rows = await db
-      .select({ total: sql<number>`count(*)` })
-      .from(pizzaMenuItems)
-      .where(eq(pizzaMenuItems.categoryId, categoryId));
-    count = Number(rows[0]?.total || 0);
-  }
+  const rows = await db
+    .select({ total: sql<number>`count(*)` })
+    .from(menuItems)
+    .where(eq(menuItems.categoryId, categoryId));
+  const count = Number(rows[0]?.total || 0);
 
   if (count > 0) {
-    throw new MenuValidationError("Cannot delete category with existing menu items.", 409, "CATEGORY_NOT_EMPTY");
+    throw new MenuValidationError(
+      "Cannot delete category with existing menu items.",
+      409,
+      "CATEGORY_NOT_EMPTY",
+    );
   }
 
   await db.delete(menuCategories).where(eq(menuCategories.id, categoryId));
@@ -923,7 +704,6 @@ export async function listAdminItemsFromDb({
     .filter((item) => (normalizedSearch ? matchSearch(item, normalizedSearch) : true))
     .sort(sortByCategoryThenPriceThenName)
     .map(toAdminItem);
-
   return paginate(items, page, pageSize);
 }
 
@@ -943,79 +723,51 @@ export async function createItemInDb(input: {
   basePrice: number;
   isActive: boolean;
   prepMinutes: number;
+  focalX?: number;
+  focalY?: number;
 }) {
   const category = await ensureCategory(input.categoryId);
-  const source = toSupportedSource(category);
   const id = createItemId();
   const imageMetadataId = await resolveImageMetadataId(input.imageUrls);
+  const isDualPrice = category.slug === "pizzat";
+  const focalX = input.focalX !== undefined ? input.focalX.toFixed(2) : null;
+  const focalY = input.focalY !== undefined ? input.focalY.toFixed(2) : null;
 
-  if (source === "starters") {
-    await db.insert(starterMenuItems).values({
-      id,
-      categoryId: category.id,
-      name: input.name,
-      description: input.description,
-      imageMetadataId: imageMetadataId ?? null,
-      price: input.basePrice.toFixed(2),
-      prepMinutes: input.prepMinutes,
-      isActive: input.isActive,
-    });
-  }
-
-  if (source === "kebabit") {
-    await db.insert(kebabitMenuItems).values({
-      id,
-      categoryId: category.id,
-      name: input.name,
-      imageMetadataId: imageMetadataId ?? null,
-      price: input.basePrice.toFixed(2),
-      prepMinutes: input.prepMinutes,
-      isActive: input.isActive,
-    });
-  }
-
-  if (source === "salaatit") {
-    await db.insert(salaatitMenuItems).values({
-      id,
-      categoryId: category.id,
-      name: input.name,
-      description: input.description,
-      imageMetadataId: imageMetadataId ?? null,
-      price: input.basePrice.toFixed(2),
-      prepMinutes: input.prepMinutes,
-      isActive: input.isActive,
-    });
-  }
-
-  if (source === "drinks") {
-    await db.insert(drinkMenuItems).values({
-      id,
-      categoryId: category.id,
-      name: input.name,
-      description: input.description,
-      imageMetadataId: imageMetadataId ?? null,
-      price: input.basePrice.toFixed(2),
-      prepMinutes: input.prepMinutes,
-      isActive: input.isActive,
-    });
-  }
-
-  if (source === "pizzat") {
+  if (isDualPrice) {
     const rows = await db
-      .select({ maxMenuNumber: sql<number>`COALESCE(MAX(${pizzaMenuItems.menuNumber}), 0)` })
-      .from(pizzaMenuItems)
-      .where(eq(pizzaMenuItems.categoryId, category.id));
+      .select({ maxMenuNumber: sql<number>`COALESCE(MAX(${menuItems.menuNumber}), 0)` })
+      .from(menuItems)
+      .where(eq(menuItems.categoryId, category.id));
     const maxMenuNumber = Number(rows[0]?.maxMenuNumber || 0);
 
-    await db.insert(pizzaMenuItems).values({
+    await db.insert(menuItems).values({
       id,
       categoryId: category.id,
       menuNumber: maxMenuNumber + 1,
       name: input.name,
-      description: input.description,
+      description: input.description || null,
       imageMetadataId: imageMetadataId ?? null,
+      basePrice: null,
       largePrice: input.basePrice.toFixed(2),
       familyPrice: input.basePrice.toFixed(2),
+      imageFocalX: focalX,
+      imageFocalY: focalY,
+      prepMinutes: input.prepMinutes,
+      isActive: input.isActive,
+    });
+  } else {
+    await db.insert(menuItems).values({
+      id,
+      categoryId: category.id,
+      menuNumber: null,
+      name: input.name,
+      description: input.description || null,
+      imageMetadataId: imageMetadataId ?? null,
+      basePrice: input.basePrice.toFixed(2),
+      largePrice: null,
+      familyPrice: null,
+      imageFocalX: focalX,
+      imageFocalY: focalY,
       prepMinutes: input.prepMinutes,
       isActive: input.isActive,
     });
@@ -1035,6 +787,8 @@ export async function updateItemInDb(
     familyPrice?: number;
     isActive?: boolean;
     prepMinutes?: number;
+    focalX?: number | null;
+    focalY?: number | null;
   },
 ) {
   const current = await findItemById(itemId);
@@ -1044,90 +798,33 @@ export async function updateItemInDb(
 
   let targetCategoryId = current.categoryId;
   if (patch.categoryId && patch.categoryId !== current.categoryId) {
-    const targetCategory = await ensureCategory(patch.categoryId);
-    const targetSource = toSupportedSource(targetCategory);
-    if (targetSource !== current.source) {
-      throw new MenuValidationError(
-        "Moving item across category tables is not supported. Create a new item in the target category.",
-        400,
-        "ITEM_MOVE_NOT_SUPPORTED",
-      );
-    }
+    await ensureCategory(patch.categoryId);
     targetCategoryId = patch.categoryId;
   }
+
   const nextImageMetadataId = await resolveImageMetadataId(patch.imageUrls);
+  const isDualPrice = current.familyPrice !== null;
+  const nextFocalX =
+    "focalX" in patch
+      ? patch.focalX !== null && patch.focalX !== undefined
+        ? patch.focalX.toFixed(2)
+        : null
+      : undefined;
+  const nextFocalY =
+    "focalY" in patch
+      ? patch.focalY !== null && patch.focalY !== undefined
+        ? patch.focalY.toFixed(2)
+        : null
+      : undefined;
 
-  if (current.source === "starters") {
-    await db
-      .update(starterMenuItems)
-      .set({
-        categoryId: targetCategoryId,
-        name: patch.name,
-        description: patch.description,
-        imageMetadataId: nextImageMetadataId,
-        price: patch.basePrice !== undefined ? patch.basePrice.toFixed(2) : undefined,
-        isActive: patch.isActive,
-        prepMinutes: patch.prepMinutes,
-        updatedAt: sql`CURRENT_TIMESTAMP(3)`,
-      })
-      .where(eq(starterMenuItems.id, itemId));
-  }
-
-  if (current.source === "kebabit") {
-    await db
-      .update(kebabitMenuItems)
-      .set({
-        categoryId: targetCategoryId,
-        name: patch.name,
-        imageMetadataId: nextImageMetadataId,
-        price: patch.basePrice !== undefined ? patch.basePrice.toFixed(2) : undefined,
-        isActive: patch.isActive,
-        prepMinutes: patch.prepMinutes,
-        updatedAt: sql`CURRENT_TIMESTAMP(3)`,
-      })
-      .where(eq(kebabitMenuItems.id, itemId));
-  }
-
-  if (current.source === "salaatit") {
-    await db
-      .update(salaatitMenuItems)
-      .set({
-        categoryId: targetCategoryId,
-        name: patch.name,
-        description: patch.description,
-        imageMetadataId: nextImageMetadataId,
-        price: patch.basePrice !== undefined ? patch.basePrice.toFixed(2) : undefined,
-        isActive: patch.isActive,
-        prepMinutes: patch.prepMinutes,
-        updatedAt: sql`CURRENT_TIMESTAMP(3)`,
-      })
-      .where(eq(salaatitMenuItems.id, itemId));
-  }
-
-  if (current.source === "drinks") {
-    await db
-      .update(drinkMenuItems)
-      .set({
-        categoryId: targetCategoryId,
-        name: patch.name,
-        description: patch.description,
-        imageMetadataId: nextImageMetadataId,
-        price: patch.basePrice !== undefined ? patch.basePrice.toFixed(2) : undefined,
-        isActive: patch.isActive,
-        prepMinutes: patch.prepMinutes,
-        updatedAt: sql`CURRENT_TIMESTAMP(3)`,
-      })
-      .where(eq(drinkMenuItems.id, itemId));
-  }
-
-  if (current.source === "pizzat") {
+  if (isDualPrice) {
     const nextLarge = patch.basePrice !== undefined ? patch.basePrice : current.basePrice;
     const requestedFamily =
       patch.familyPrice !== undefined ? patch.familyPrice : current.familyPrice || nextLarge;
     const nextFamily = Math.max(requestedFamily, nextLarge);
 
     await db
-      .update(pizzaMenuItems)
+      .update(menuItems)
       .set({
         categoryId: targetCategoryId,
         name: patch.name,
@@ -1138,11 +835,29 @@ export async function updateItemInDb(
           patch.basePrice !== undefined || patch.familyPrice !== undefined
             ? nextFamily.toFixed(2)
             : undefined,
+        imageFocalX: nextFocalX,
+        imageFocalY: nextFocalY,
         isActive: patch.isActive,
         prepMinutes: patch.prepMinutes,
         updatedAt: sql`CURRENT_TIMESTAMP(3)`,
       })
-      .where(eq(pizzaMenuItems.id, itemId));
+      .where(eq(menuItems.id, itemId));
+  } else {
+    await db
+      .update(menuItems)
+      .set({
+        categoryId: targetCategoryId,
+        name: patch.name,
+        description: patch.description,
+        imageMetadataId: nextImageMetadataId,
+        basePrice: patch.basePrice !== undefined ? patch.basePrice.toFixed(2) : undefined,
+        imageFocalX: nextFocalX,
+        imageFocalY: nextFocalY,
+        isActive: patch.isActive,
+        prepMinutes: patch.prepMinutes,
+        updatedAt: sql`CURRENT_TIMESTAMP(3)`,
+      })
+      .where(eq(menuItems.id, itemId));
   }
 
   return getAdminItemDetailFromDb(itemId);
@@ -1153,52 +868,59 @@ export async function deleteItemInDb(itemId: string) {
   if (!current) {
     throw new MenuValidationError("Menu item not found.", 404, "ITEM_NOT_FOUND");
   }
-
-  if (current.source === "starters") {
-    await db.delete(starterMenuItems).where(eq(starterMenuItems.id, itemId));
-    return;
-  }
-  if (current.source === "kebabit") {
-    await db.delete(kebabitMenuItems).where(eq(kebabitMenuItems.id, itemId));
-    return;
-  }
-  if (current.source === "salaatit") {
-    await db.delete(salaatitMenuItems).where(eq(salaatitMenuItems.id, itemId));
-    return;
-  }
-  if (current.source === "drinks") {
-    await db.delete(drinkMenuItems).where(eq(drinkMenuItems.id, itemId));
-    return;
-  }
-  await db.delete(pizzaMenuItems).where(eq(pizzaMenuItems.id, itemId));
+  await db.delete(menuItems).where(eq(menuItems.id, itemId));
 }
 
 export async function createModifierGroupInDb(...args: unknown[]) {
   void args;
-  assertModifierUnsupported();
+  throw new MenuValidationError(
+    "Modifier groups are not yet supported.",
+    400,
+    "MODIFIERS_NOT_SUPPORTED",
+  );
 }
 
 export async function updateModifierGroupInDb(...args: unknown[]) {
   void args;
-  assertModifierUnsupported();
+  throw new MenuValidationError(
+    "Modifier groups are not yet supported.",
+    400,
+    "MODIFIERS_NOT_SUPPORTED",
+  );
 }
 
 export async function deleteModifierGroupInDb(...args: unknown[]) {
   void args;
-  assertModifierUnsupported();
+  throw new MenuValidationError(
+    "Modifier groups are not yet supported.",
+    400,
+    "MODIFIERS_NOT_SUPPORTED",
+  );
 }
 
 export async function createModifierOptionInDb(...args: unknown[]) {
   void args;
-  assertModifierUnsupported();
+  throw new MenuValidationError(
+    "Modifier options are not yet supported.",
+    400,
+    "MODIFIERS_NOT_SUPPORTED",
+  );
 }
 
 export async function updateModifierOptionInDb(...args: unknown[]) {
   void args;
-  assertModifierUnsupported();
+  throw new MenuValidationError(
+    "Modifier options are not yet supported.",
+    400,
+    "MODIFIERS_NOT_SUPPORTED",
+  );
 }
 
 export async function deleteModifierOptionInDb(...args: unknown[]) {
   void args;
-  assertModifierUnsupported();
+  throw new MenuValidationError(
+    "Modifier options are not yet supported.",
+    400,
+    "MODIFIERS_NOT_SUPPORTED",
+  );
 }

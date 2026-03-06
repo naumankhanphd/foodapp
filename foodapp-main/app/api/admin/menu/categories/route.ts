@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { ROLES } from "@/lib/auth/config.mjs";
-import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.mjs";
+import { ROLES } from "@/lib/auth/config.ts";
+import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
 import {
   createCategoryInDb,
   listAdminCategoriesFromDb,
 } from "@/lib/menu/drizzle-menu";
-import { parseListQuery, validateCategoryCreate } from "@/lib/menu/validation.mjs";
+import { parseListQuery, validateCategoryCreate } from "@/lib/menu/validation.ts";
 
 export async function GET(request: Request) {
   try {

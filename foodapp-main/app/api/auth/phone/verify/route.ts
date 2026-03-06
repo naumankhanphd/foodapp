@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createSessionTokenForUser, verifyPhoneCode } from "@/lib/auth/service.mjs";
-import { getSessionOrThrow, parseJsonRequest, toErrorResponse, withSessionCookie } from "@/lib/auth/http.mjs";
+import { createSessionTokenForUser, verifyPhoneCode } from "@/lib/auth/service.ts";
+import { getSessionOrThrow, parseJsonRequest, toErrorResponse, withSessionCookie } from "@/lib/auth/http.ts";
 
 export async function POST(request: Request) {
   try {

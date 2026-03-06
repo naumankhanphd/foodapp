@@ -4,9 +4,9 @@ function SkeletonLine({ className }: { className: string }) {
 
 export default function MenuLoading() {
   return (
-    <main className="pt-2 pb-6 sm:pt-3 sm:pb-10">
+    <main className="pt-0 pb-6 sm:pb-10">
       <div className="shell grid animate-pulse gap-4">
-        <div className="sticky top-[67px] z-30 -mx-2 border-b border-[var(--line)] bg-[rgb(242_242_242_/_0.97)] px-2 py-2 backdrop-blur">
+        <div className="sticky top-[68px] z-30 mx-1.5 rounded-b-2xl border-x-[3px] border-b-[3px] border-[#2d1d13] bg-[rgb(52_43_79_/_0.96)] px-2 py-2 backdrop-blur sm:-mx-2">
           <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
             {Array.from({ length: 5 }).map((_, index) => (
               <SkeletonLine key={index} className="h-8 w-24 rounded-full" />

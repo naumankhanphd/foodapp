@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { listPublicMenuFromDb } from "@/lib/menu/drizzle-menu";
-import { toErrorResponse } from "@/lib/auth/http.mjs";
+import { toErrorResponse } from "@/lib/auth/http.ts";
 
 export async function GET(request: Request) {
   try {

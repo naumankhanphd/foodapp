@@ -45,3 +45,6 @@ next-env.d.ts
 
 # random files
 ../ignore.txt
+
+# claude tmp files
+tmpclaude-*

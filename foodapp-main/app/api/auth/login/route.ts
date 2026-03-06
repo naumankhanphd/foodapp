@@ -3,8 +3,8 @@ import {
   createSessionTokenForUser,
   getMissingMandatoryProfileFields,
   loginWithPassword,
-} from "@/lib/auth/service.mjs";
-import { parseJsonRequest, toErrorResponse, withSessionCookie } from "@/lib/auth/http.mjs";
+} from "@/lib/auth/service.ts";
+import { parseJsonRequest, toErrorResponse, withSessionCookie } from "@/lib/auth/http.ts";
 
 export async function POST(request: Request) {
   try {

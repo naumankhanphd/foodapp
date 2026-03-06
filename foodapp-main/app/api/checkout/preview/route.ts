@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { ROLES } from "@/lib/auth/config.mjs";
-import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.mjs";
-import { previewCheckout } from "@/lib/cart/store.mjs";
-import { validateCheckoutRequest } from "@/lib/cart/validation.mjs";
+import { ROLES } from "@/lib/auth/config.ts";
+import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
+import { previewCheckout } from "@/lib/cart/store.ts";
+import { validateCheckoutRequest } from "@/lib/cart/validation.ts";
 
 export async function POST(request: Request) {
   try {

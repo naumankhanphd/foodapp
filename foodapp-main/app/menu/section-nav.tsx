@@ -81,7 +81,7 @@ export function SectionNav({ sections, orientation = "horizontal" }: SectionNavP
       className={
         isVertical
           ? "sticky top-24 z-20"
-          : "sticky top-[67px] z-30 -mx-2 rounded-2xl border border-[var(--line)] bg-[rgb(242_242_242_/_0.97)] px-2 py-2 backdrop-blur"
+          : "sticky top-[68px] z-30 mx-1.5 rounded-b-2xl border-x-[3px] border-b-[3px] border-[#2d1d13] bg-[rgb(52_43_79_/_0.96)] px-2 py-2 backdrop-blur sm:-mx-2"
       }
     >
       <div
@@ -115,7 +115,7 @@ export function SectionNav({ sections, orientation = "horizontal" }: SectionNavP
                     : `rounded-full border px-4 py-1.5 text-sm font-semibold ${
                         isActive
                           ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
-                          : "border-[var(--line)] bg-white hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                          : "border-[#6a5b91] bg-[#453969] text-[#f2ecff] hover:border-[var(--accent)] hover:text-[#ffd8bf]"
                       }`
                 }
               >

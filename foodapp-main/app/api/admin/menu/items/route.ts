@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { ROLES } from "@/lib/auth/config.mjs";
-import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.mjs";
+import { ROLES } from "@/lib/auth/config.ts";
+import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
 import { createItemInDb, listAdminItemsFromDb } from "@/lib/menu/drizzle-menu";
-import { parseListQuery, validateItemCreate } from "@/lib/menu/validation.mjs";
+import { parseListQuery, validateItemCreate } from "@/lib/menu/validation.ts";
 
 export async function GET(request: Request) {
   try {

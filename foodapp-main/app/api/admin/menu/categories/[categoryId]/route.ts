@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { ROLES } from "@/lib/auth/config.mjs";
-import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.mjs";
+import { ROLES } from "@/lib/auth/config.ts";
+import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
 import { deleteCategoryInDb, updateCategoryInDb } from "@/lib/menu/drizzle-menu";
-import { validateCategoryUpdate } from "@/lib/menu/validation.mjs";
+import { validateCategoryUpdate } from "@/lib/menu/validation.ts";
 
 type CategoryRouteProps = {
   params: Promise<{ categoryId: string }>;

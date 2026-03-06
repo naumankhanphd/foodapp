@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { AUTH_SECRET, SESSION_COOKIE_NAME } from "@/lib/auth/config.mjs";
-import { evaluateAccessPolicy } from "@/lib/auth/policy.mjs";
+import { AUTH_SECRET, SESSION_COOKIE_NAME } from "@/lib/auth/config.ts";
+import { evaluateAccessPolicy } from "@/lib/auth/policy.ts";
 
 type SessionPayload = {
   sub: string;

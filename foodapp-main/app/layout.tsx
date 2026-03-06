@@ -15,9 +15,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fi">
-      <body className="antialiased">
+      <body className="flex min-h-screen flex-col antialiased">
         <SiteHero />
-        {children}
+        <div className="flex-1">{children}</div>
         <SiteFooter />
       </body>
     </html>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getGuestPolicy } from "@/lib/auth/service.mjs";
-import { getSessionOrThrow, toErrorResponse } from "@/lib/auth/http.mjs";
+import { getGuestPolicy } from "@/lib/auth/service.ts";
+import { getSessionOrThrow, toErrorResponse } from "@/lib/auth/http.ts";
 
 export async function GET(request: Request) {
   try {

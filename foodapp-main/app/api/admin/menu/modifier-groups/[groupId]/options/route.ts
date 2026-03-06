@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { ROLES } from "@/lib/auth/config.mjs";
-import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.mjs";
+import { ROLES } from "@/lib/auth/config.ts";
+import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
 import { createModifierOptionInDb } from "@/lib/menu/drizzle-menu";
-import { validateModifierOptionCreate } from "@/lib/menu/validation.mjs";
+import { validateModifierOptionCreate } from "@/lib/menu/validation.ts";
 
 type OptionCreateProps = {
   params: Promise<{ groupId: string }>;

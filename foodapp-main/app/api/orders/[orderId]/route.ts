@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { queueOrders } from "@/lib/mock-data";
-import { getSessionOrThrow, toErrorResponse } from "@/lib/auth/http.mjs";
-import { ROLES } from "@/lib/auth/config.mjs";
+import { getSessionOrThrow, toErrorResponse } from "@/lib/auth/http.ts";
+import { ROLES } from "@/lib/auth/config.ts";
 
 type OrderRouteProps = {
   params: Promise<{ orderId: string }>;

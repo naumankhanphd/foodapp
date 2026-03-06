@@ -1,168 +1,212 @@
 "use client";
 
+import Link from "next/link";
+
 const services = [
   {
-    icon: "DI",
-    title: "Dine-In Experience",
+    icon: "🍽️",
+    title: "Dine-In",
     description:
-      "Comfortable seating, warm service, and a full menu crafted for memorable meals.",
+      "Sit back and enjoy warm service, a full menu, and a comfortable dining atmosphere made for great meals.",
   },
   {
-    icon: "DL",
+    icon: "🛵",
     title: "Fast Delivery",
     description:
-      "Hot, fresh food delivered to your door with live order tracking.",
+      "Hot food to your door, trackable from the moment it leaves our kitchen to the moment it arrives.",
   },
   {
-    icon: "PU",
+    icon: "🥡",
     title: "Quick Pickup",
-    description: "Order ahead from web and collect your meal right on time.",
+    description:
+      "Order ahead from your phone or browser and collect your meal at the counter — no waiting.",
   },
   {
-    icon: "CT",
+    icon: "🎉",
     title: "Event Catering",
     description:
-      "Custom catering menus for office lunches, parties, and family celebrations.",
+      "Custom menus for office lunches, birthday parties, and family celebrations. We handle the food.",
   },
   {
-    icon: "CS",
+    icon: "👨‍🍳",
     title: "Chef Specials",
     description:
-      "Seasonal dishes and limited-time recipes prepared by our kitchen team.",
+      "Seasonal dishes and limited-time recipes crafted fresh by our kitchen team every week.",
   },
   {
-    icon: "FM",
+    icon: "👨‍👩‍👧",
     title: "Family Combos",
     description:
-      "Value meal bundles designed for group dining and weekend feasts.",
+      "Value bundles and sharing platters built for group dining, weekends, and big appetites.",
   },
 ];
 
-const portfolio = [
+const featured = [
   {
-    title: "Signature Grill Platter",
+    title: "Kebab Platter",
     description:
-      "Mixed grilled chicken, lamb, and vegetables with house sauces and fresh bread.",
-    tags: ["Popular", "High Protein", "Chef Pick"],
-    visualClass: "gt-visual-1",
-  },
-  {
-    title: "Classic Burger Meal",
-    description:
-      "Juicy beef patty, cheddar, caramelized onion, and fries with dip.",
-    tags: ["Fast Food", "Customer Favorite"],
-    visualClass: "gt-visual-2",
+      "Tender marinated chicken or lamb kebab served with rice, fresh salad, and our signature garlic sauce.",
+    tags: ["Best Seller", "High Protein", "Chef Pick"],
+    bg: "bg-[#fff2e8]",
+    border: "border-[#e8863a]",
   },
   {
     title: "Wood-Fired Pizza",
     description:
-      "Stone-baked crust topped with mozzarella, basil, and rich tomato sauce.",
-    tags: ["Italian", "Best Seller"],
-    visualClass: "gt-visual-3",
+      "Stone-baked crust loaded with mozzarella, fresh toppings, and rich tomato sauce — crisp every time.",
+    tags: ["Italian Style", "Popular"],
+    bg: "bg-[#f7f2ff]",
+    border: "border-[#7c5bb8]",
   },
   {
-    title: "Fresh Garden Bowl",
+    title: "Kebab Box",
     description:
-      "Crisp greens, roasted veggies, avocado, and lemon-herb dressing.",
-    tags: ["Healthy", "Vegan Option"],
-    visualClass: "gt-visual-4",
+      "Generous portions of kebab meat, fries, and bread in one box. Perfect for a quick satisfying meal.",
+    tags: ["Fast Food", "Value"],
+    bg: "bg-[#eaf8ff]",
+    border: "border-[#2ea7d3]",
   },
   {
-    title: "Creamy Pasta Alfredo",
+    title: "Veggie Pizza",
     description:
-      "Fresh pasta in parmesan cream sauce with mushroom and garlic notes.",
-    tags: ["Comfort Food", "Dinner"],
-    visualClass: "gt-visual-5",
+      "Seasonal vegetables, olives, and fresh herbs on a golden crust. Light, flavourful, and filling.",
+    tags: ["Vegetarian", "Healthy"],
+    bg: "bg-[#eef7ef]",
+    border: "border-[#2f9b52]",
   },
   {
-    title: "Dessert Collection",
+    title: "Mixed Grill",
     description:
-      "Brownie, cheesecake, and seasonal sweets made in-house daily.",
-    tags: ["Sweet", "Weekend Special"],
-    visualClass: "gt-visual-6",
+      "A full spread of grilled meats, dips, and sides — the crowd-pleaser for hungry groups.",
+    tags: ["Sharing", "Weekend Special"],
+    bg: "bg-[#fff7e8]",
+    border: "border-[#f7b731]",
   },
+  {
+    title: "Today's Special",
+    description:
+      "Our kitchen team prepares a fresh dish every day. Check the menu for what's on today.",
+    tags: ["Daily Special", "Fresh"],
+    bg: "bg-[#eef3ff]",
+    border: "border-[#3b6ff0]",
+  },
+];
+
+const stats = [
+  { value: "30+", label: "Years Serving" },
+  { value: "500+", label: "Orders a Day" },
+  { value: "4.8★", label: "Customer Rating" },
+  { value: "3", label: "Ways to Order" },
 ];
 
 const testimonials = [
   {
-    id: "review-1",
-    quote:
-      "The food was incredible and the service felt genuinely personal. We keep coming back.",
-    name: "Sarim",
+    id: "r1",
+    quote: "The kebab is genuinely the best in town. We order every Friday without fail.",
+    name: "Mikael H.",
     role: "Regular Guest",
-    initial: "S",
+    initial: "M",
   },
   {
-    id: "review-2",
-    quote:
-      "Delivery was fast, everything arrived hot, and the taste was exactly what we wanted.",
-    name: "Sarim",
+    id: "r2",
+    quote: "Delivery was at the door in 25 minutes and everything was still piping hot.",
+    name: "Laura P.",
     role: "Delivery Customer",
-    initial: "S",
+    initial: "L",
   },
   {
-    id: "review-3",
-    quote:
-      "We booked catering for a team event and every dish was fresh and perfectly prepared.",
-    name: "Sarim",
+    id: "r3",
+    quote: "We catered our whole office event through Tikanmaan. Every dish was fresh and perfect.",
+    name: "Riku V.",
     role: "Corporate Client",
-    initial: "S",
+    initial: "R",
   },
   {
-    id: "review-4",
-    quote:
-      "The flavors are always consistent and the portions are perfect for family dinner nights.",
-    name: "Sarim",
+    id: "r4",
+    quote: "The pizza crust is crispy and the toppings are always generous. Kids love it too.",
+    name: "Hanna K.",
     role: "Family Guest",
-    initial: "S",
+    initial: "H",
   },
   {
-    id: "review-5",
-    quote:
-      "Pickup was smooth and fast, and the meal was still fresh when I reached home.",
-    name: "Sarim",
+    id: "r5",
+    quote: "Pickup is super easy — order online, walk in, grab your bag. Exactly what I need.",
+    name: "Tomas E.",
     role: "Pickup Customer",
-    initial: "S",
+    initial: "T",
   },
   {
-    id: "review-6",
-    quote:
-      "Their chef specials are creative and delicious. I always try the new weekly item.",
-    name: "Sarim",
+    id: "r6",
+    quote: "Chef specials are always creative. I check the menu every week just to see what's new.",
+    name: "Aino S.",
     role: "Weekend Guest",
-    initial: "S",
+    initial: "A",
   },
 ];
 
 export default function Home() {
   return (
     <main className="gt-site">
+
+      {/* ── Hero ── */}
       <section className="gt-hero gt-section-alt">
         <div className="shell">
           <div className="gt-hero-inner">
-            <span className="gt-pill">Restaurant</span>
+            <span className="gt-pill">Kebab &amp; Pizza · Est. 1995</span>
             <h1 className="mt-5 text-balance text-5xl font-black tracking-tight text-[#1c1c1c] sm:text-6xl lg:text-7xl">
-              Tikanmaan Kebab Pizeeria
+              Tikanmaan<br className="hidden sm:block" /> Kebab Pizzeria
             </h1>
             <p className="mt-5 text-lg sm:text-2xl">
-              Fresh kebab, pizzas, and fast delivery every day.
+              Authentic kebabs, wood-fired pizzas, and fast delivery — prepared fresh every day in our kitchen.
             </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/menu"
+                className="rounded-xl border-[3px] border-[#2d1d13] bg-[#f97316] px-6 py-3 text-base font-black text-white shadow-[4px_4px_0_0_#2d1d13] transition hover:bg-[#ea6c0a] active:translate-y-0.5"
+              >
+                View Full Menu
+              </Link>
+              <Link
+                href="/menu"
+                className="rounded-xl border-[3px] border-[#2d1d13] bg-white px-6 py-3 text-base font-black text-[#2d1d13] shadow-[4px_4px_0_0_#2d1d13] transition hover:bg-[#fff4dd] active:translate-y-0.5"
+              >
+                Order Now
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
-      <section id="services" className="gt-section">
+      {/* ── Stats ── */}
+      <section className="gt-section">
+        <div className="shell">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {stats.map((s) => (
+              <article
+                key={s.label}
+                className="rounded-[20px] border-[3px] border-[#2d1d13] bg-[#fff4dd] px-5 py-4 text-center shadow-[4px_4px_0_0_#2d1d13]"
+              >
+                <p className="text-3xl font-black text-[#2d1d13]">{s.value}</p>
+                <p className="mt-1 text-xs font-bold uppercase tracking-[0.1em] text-[#6a4b30]">{s.label}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Services ── */}
+      <section id="services" className="gt-section gt-section-alt">
         <div className="shell">
           <div className="gt-section-head">
             <span className="gt-pill">Our Services</span>
-            <h2>What We Offer</h2>
-            <p>Flexible dining options for every mood, plan, and occasion.</p>
+            <h2>How We Serve You</h2>
+            <p>Three ways to enjoy Tikanmaan — dine in, pick up, or get it delivered.</p>
           </div>
           <div className="gt-grid gt-grid-3">
             {services.map((item) => (
               <article key={item.title} className="gt-card">
-                <p className="gt-service-icon">{item.icon}</p>
-                <h3>{item.title}</h3>
+                <p className="text-3xl">{item.icon}</p>
+                <h3 className="mt-3">{item.title}</h3>
                 <p>{item.description}</p>
               </article>
             ))}
@@ -170,22 +214,29 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="menu" className="gt-section gt-section-alt">
+      {/* ── Featured dishes ── */}
+      <section id="menu" className="gt-section">
         <div className="shell">
           <div className="gt-section-head">
             <span className="gt-pill">Featured Menu</span>
-            <h2>Chef Recommended Dishes</h2>
-            <p>A selection of guest favorites from our kitchen.</p>
+            <h2>What We're Known For</h2>
+            <p>From our signature kebabs to crispy pizzas — made fresh to order, every time.</p>
           </div>
           <div className="gt-grid gt-grid-3">
-            {portfolio.map((item) => (
-              <article key={item.title} className="gt-card gt-product-card">
-                <div className={`gt-visual ${item.visualClass}`} />
-                <h3>{item.title}</h3>
-                <p>{item.description}</p>
-                <div className="gt-tags">
+            {featured.map((item) => (
+              <article
+                key={item.title}
+                className={`gt-card rounded-[20px] border-[3px] border-[#2d1d13] ${item.bg} p-5 shadow-[4px_4px_0_0_#2d1d13]`}
+              >
+                <div className={`mb-3 h-1.5 w-10 rounded-full ${item.border.replace("border-", "bg-")}`} />
+                <h3 className="text-lg font-black text-[#1f1f1f]">{item.title}</h3>
+                <p className="mt-2 text-sm text-[#4a3728]">{item.description}</p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
                   {item.tags.map((tag) => (
-                    <span key={tag} className="gt-tag">
+                    <span
+                      key={tag}
+                      className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${item.border} text-[#2d1d13]`}
+                    >
                       {tag}
                     </span>
                   ))}
@@ -193,15 +244,24 @@ export default function Home() {
               </article>
             ))}
           </div>
+          <div className="mt-8 text-center">
+            <Link
+              href="/menu"
+              className="inline-block rounded-xl border-[3px] border-[#2d1d13] bg-[#f97316] px-8 py-3 text-sm font-black text-white shadow-[4px_4px_0_0_#2d1d13] transition hover:bg-[#ea6c0a]"
+            >
+              See Full Menu
+            </Link>
+          </div>
         </div>
       </section>
 
-      <section className="gt-section">
+      {/* ── Testimonials ── */}
+      <section className="gt-section gt-section-alt">
         <div className="shell">
           <div className="gt-section-head">
             <span className="gt-pill">Testimonials</span>
             <h2>What Our Guests Say</h2>
-            <p>We take pride in every meal and every customer experience.</p>
+            <p>Real feedback from the people who eat with us every week.</p>
           </div>
           <div className="gt-testimonials-marquee">
             <div className="gt-testimonials-track">
@@ -233,22 +293,29 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="about" className="gt-section gt-section-alt">
+      {/* ── About ── */}
+      <section id="about" className="gt-section">
         <div className="shell gt-story">
           <article>
             <span className="gt-pill gt-pill-wide">Our Story</span>
-            <h2>A Tradition of Great Food</h2>
+            <h2>Thirty Years of Real Food</h2>
             <p>
-              Founded in 1995, FoodApp started as a small family-owned
-              restaurant focused on authentic taste and warm hospitality. Over
-              the years, we have expanded into a full dining and delivery
-              experience while keeping our quality standards high.
+              Tikanmaan Kebab Pizzeria opened its doors in 1995 with one goal — serve honest,
+              flavourful food made from fresh ingredients every single day. What started as a small
+              kebab counter has grown into a full kitchen offering dine-in, delivery, and pickup.
             </p>
             <p>
-              Today, our chefs and service team prepare every order with fresh
-              ingredients and consistent care so every guest enjoys a meal worth
-              remembering.
+              Our recipes haven't changed much. We still marinate in-house, bake our own dough, and
+              prepare every order the same way we did on day one — by hand, with care.
             </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/menu"
+                className="rounded-xl border-[3px] border-[#2d1d13] bg-[#f97316] px-5 py-2.5 text-sm font-black text-white shadow-[3px_3px_0_0_#2d1d13] transition hover:bg-[#ea6c0a]"
+              >
+                Browse the Menu
+              </Link>
+            </div>
           </article>
           <div className="gt-story-image" />
         </div>

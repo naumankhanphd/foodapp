@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { CHECKOUT_RESTRICTION_POLICY } from "@/lib/auth/config.mjs";
+import { CHECKOUT_RESTRICTION_POLICY } from "@/lib/auth/config.ts";
 
 type OrderType = "DINE_IN" | "DELIVERY" | "PICKUP";
 type PaymentMethod = "CARD" | "GOOGLE_PAY" | "APPLE_PAY" | "PAYPAL" | "CASH";

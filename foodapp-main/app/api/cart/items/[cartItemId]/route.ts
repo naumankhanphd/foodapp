@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseJsonRequest, toErrorResponse } from "@/lib/auth/http.mjs";
-import { applyCartGuestCookie, resolveCartOwner } from "@/lib/cart/session.mjs";
-import { removeCartItem, updateCartItem } from "@/lib/cart/store.mjs";
-import { validateCartItemUpdate } from "@/lib/cart/validation.mjs";
+import { parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
+import { applyCartGuestCookie, resolveCartOwner } from "@/lib/cart/session.ts";
+import { removeCartItem, updateCartItem } from "@/lib/cart/store.ts";
+import { validateCartItemUpdate } from "@/lib/cart/validation.ts";
 
 type CartItemRouteProps = {
   params: Promise<{ cartItemId: string }>;

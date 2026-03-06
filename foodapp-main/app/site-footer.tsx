@@ -18,7 +18,7 @@ export function SiteFooter() {
       <div className="shell">
         <div className="gt-footer-top">
           <article>
-            <h3>FoodApp</h3>
+            <h3>Tikanmaan</h3>
             <p>Fresh meals, fast delivery, and cozy dine-in experiences every day.</p>
             <Link className="gt-footer-link" href="/menu">
               Browse full menu

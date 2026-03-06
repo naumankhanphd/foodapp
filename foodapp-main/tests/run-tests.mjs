@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import mysql from "mysql2/promise";
-import { computeCheckoutTotal } from "../lib/pricing.mjs";
+import { computeCheckoutTotal } from "../lib/pricing.ts";
 import {
   beginGoogleAuth,
   completeGoogleProfile,
@@ -12,8 +12,8 @@ import {
   resetPassword,
   sendPhoneCode,
   verifyPhoneCode,
-} from "../lib/auth/service.mjs";
-import { evaluateAccessPolicy } from "../lib/auth/policy.mjs";
+} from "../lib/auth/service.ts";
+import { evaluateAccessPolicy } from "../lib/auth/policy.ts";
 import {
   createItem,
   getAdminItemDetail,
@@ -21,14 +21,14 @@ import {
   listAdminItems,
   resetMenuStoreForTests,
   updateItem,
-} from "../lib/menu/store.mjs";
-import { validateModifierGroupCreate } from "../lib/menu/validation.mjs";
+} from "../lib/menu/store.ts";
+import { validateModifierGroupCreate } from "../lib/menu/validation.ts";
 import {
   addCartItem,
   previewCheckout,
   resetCartStoreForTests,
   updateCartItem,
-} from "../lib/cart/store.mjs";
+} from "../lib/cart/store.ts";
 
 const DB_REQUIRED_CASES = new Set([
   "auth: customer signup and login works",

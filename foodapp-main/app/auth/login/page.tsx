@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
-import { CHECKOUT_RESTRICTION_POLICY } from "@/lib/auth/config.mjs";
+import { CHECKOUT_RESTRICTION_POLICY } from "@/lib/auth/config.ts";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 
 function inferNamesFromEmail(emailValue: string) {

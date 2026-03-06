@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseJsonRequest, toErrorResponse } from "@/lib/auth/http.mjs";
-import { applyCartGuestCookie, resolveCartOwner } from "@/lib/cart/session.mjs";
-import { addCartItem } from "@/lib/cart/store.mjs";
-import { validateCartItemCreate } from "@/lib/cart/validation.mjs";
+import { parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
+import { applyCartGuestCookie, resolveCartOwner } from "@/lib/cart/session.ts";
+import { addCartItem } from "@/lib/cart/store.ts";
+import { validateCartItemCreate } from "@/lib/cart/validation.ts";
 
 export async function POST(request: NextRequest) {
   try {

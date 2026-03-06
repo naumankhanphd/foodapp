@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseJsonRequest, toErrorResponse } from "@/lib/auth/http.mjs";
-import { applyCartGuestCookie, resolveCartOwner } from "@/lib/cart/session.mjs";
+import { parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
+import { applyCartGuestCookie, resolveCartOwner } from "@/lib/cart/session.ts";
 import {
   TAX_INCLUDED_IN_MENU_PRICES,
   TAX_RATE,
   getCartSnapshot,
   updateCart,
-} from "@/lib/cart/store.mjs";
-import { ORDER_TYPES, validateCartPatch } from "@/lib/cart/validation.mjs";
+} from "@/lib/cart/store.ts";
+import { ORDER_TYPES, validateCartPatch } from "@/lib/cart/validation.ts";
 
 function cartResponse(cart: Awaited<ReturnType<typeof getCartSnapshot>>) {
   return {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { computeCheckoutTotal } from "../lib/pricing.mjs";
+import { computeCheckoutTotal } from "../lib/pricing.ts";
 
 test("computeCheckoutTotal includes all pricing fields", () => {
   const total = computeCheckoutTotal({

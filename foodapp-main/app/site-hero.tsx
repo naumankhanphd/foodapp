@@ -672,7 +672,8 @@ export function SiteHero() {
       <div className="gt-header-shell">
         <div className="gt-topbar">
           <Link className="gt-brand" href="/">
-            FoodApp
+            <span className="gt-brand-word">Tikanmaan</span>
+            <span className="gt-brand-sub">Pizzeria</span>
           </Link>
           <nav className="gt-nav hidden md:flex">
             {visibleNavItems.map((item) => (

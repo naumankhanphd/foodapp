@@ -60,6 +60,10 @@ type MenuItem = {
 
   basePrice: number;
 
+  focalX?: number | null;
+
+  focalY?: number | null;
+
   availability?: "active" | "inactive";
 
   modifierGroups: ModifierGroup[];
@@ -95,6 +99,7 @@ type MenuSectionsProps = {
   adminUseCustomerCards?: boolean;
 
   onAdminEditItem?: (itemId: string) => void | Promise<void>;
+  onAdminDeleteItem?: (itemId: string, itemName: string) => void | Promise<void>;
 
 };
 
@@ -147,6 +152,36 @@ function formatEuro(value: number) {
   return value.toFixed(2).replace(".", ",");
 
 }
+
+/** Knuth multiplicative hash — better distribution than charSum for consecutive IDs */
+function stableHash(id: string, seed: number): number {
+  let h = (seed * 2654435761) >>> 0;
+  for (let i = 0; i < id.length; i++) {
+    h = Math.imul(h ^ id.charCodeAt(i), 2654435761) >>> 0;
+  }
+  return h;
+}
+
+const CARD_ROTATIONS = [-3, -2.5, -2, -1.5, 1.5, 2, 2.5, 3];
+
+
+/** Polaroid Stacked Mint — matches C33 */
+const MINT_PALETTE = {
+  cardBg:     "bg-white",
+  layer1:     "bg-emerald-300",
+  layer2:     "bg-emerald-100",
+  imgBorder:  "border-black",
+  imgBg:      "bg-white",
+  noImgCls:   "text-gray-400",
+  titleCls:   "text-gray-800",
+  descCls:    "text-gray-400",
+  priceCls:   "text-black",
+  qtyWrapCls: "border-emerald-600",
+  decCls:     "border-emerald-600 text-emerald-700 hover:bg-emerald-50",
+  qtyNumCls:  "text-emerald-700",
+  btnCls:     "rounded-full bg-emerald-500 shadow-[2px_2px_0_0_#000]",
+  shadow:     "#047857",
+} as const;
 
 
 
@@ -362,12 +397,33 @@ export function MenuSections({
   adminUseCustomerCards = false,
 
   onAdminEditItem,
+  onAdminDeleteItem,
 
 }: MenuSectionsProps) {
   const [cartLines, setCartLines] = useState<CartLine[]>([]);
+  const [optimisticQty, setOptimisticQty] = useState<Map<string, number>>(() => new Map());
   const mutatingItemIdsRef = useRef<Set<string>>(new Set());
   const queuedItemDeltasRef = useRef<Map<string, number>>(new Map());
   const isCartReady = true;
+
+  function applyOptimistic(itemId: string, serverQty: number, delta: number) {
+    setOptimisticQty((prev) => {
+      const current = prev.has(itemId) ? prev.get(itemId)! : serverQty;
+      const next = Math.max(0, Math.min(20, current + delta));
+      const m = new Map(prev);
+      m.set(itemId, next);
+      return m;
+    });
+  }
+
+  function clearOptimisticForItem(itemId: string) {
+    setOptimisticQty((prev) => {
+      if (!prev.has(itemId)) return prev;
+      const m = new Map(prev);
+      m.delete(itemId);
+      return m;
+    });
+  }
 
   function beginItemMutation(itemId: string) {
     if (mutatingItemIdsRef.current.has(itemId)) {
@@ -404,6 +460,66 @@ export function MenuSections({
 
   function clampQuantity(value: number) {
     return Math.max(0, Math.min(20, value));
+  }
+
+  function renderAdminActions(item: MenuItem, sizeClass: string, iconClass: string) {
+    return (
+      <div className="relative z-20 inline-flex items-center gap-1.5 sm:gap-2">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void onAdminEditItem?.(item.id);
+          }}
+          aria-label={`Edit ${item.name}`}
+          className={`inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60 ${sizeClass}`}
+          disabled={!onAdminEditItem}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className={iconClass}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L8 18l-4 1 1-4 11.5-11.5z" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void onAdminDeleteItem?.(item.id, item.name);
+          }}
+          aria-label={`Delete ${item.name}`}
+          className={`inline-flex items-center justify-center rounded-full border-2 border-[#c23b22] bg-[#fff4ef] text-[#c23b22] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60 ${sizeClass}`}
+          disabled={!onAdminDeleteItem}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className={iconClass}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 6h18" />
+            <path d="M8 6V4h8v2" />
+            <path d="M19 6l-1 14H6L5 6" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+          </svg>
+        </button>
+      </div>
+    );
   }
 
 
@@ -513,9 +629,14 @@ export function MenuSections({
 
     }
 
+    // Overlay optimistic overrides (instant feedback while server is in-flight)
+    for (const [itemId, qty] of optimisticQty) {
+      counts.set(itemId, qty);
+    }
+
     return counts;
 
-  }, [cartLines]);
+  }, [cartLines, optimisticQty]);
 
 
 
@@ -664,7 +785,10 @@ export function MenuSections({
     return await applyMutationResponse(response);
   }
 
-  async function mutateItemCount(item: MenuItem, direction: "inc" | "dec") {
+  // skipOptimistic=true is used for the trailing-delta recursive call: the user
+  // already clicked those buttons (optimistic was applied then), so we must not
+  // add it a second time here.
+  async function mutateItemCount(item: MenuItem, direction: "inc" | "dec", skipOptimistic = false) {
     const defaultOptionIds = getDefaultOptionIdsForQuickAdd(item.modifierGroups);
     if (!defaultOptionIds) {
       window.location.assign(`/menu/${item.id}`);
@@ -672,6 +796,14 @@ export function MenuSections({
     }
 
     const delta = direction === "inc" ? 1 : -1;
+
+    // Immediately reflect the change in the UI — no waiting for the server.
+    // Skipped for the internal trailing-delta recursive call to avoid double-counting.
+    if (!skipOptimistic) {
+      const serverQty = quantityByItemId.get(item.id) || 0;
+      applyOptimistic(item.id, serverQty, delta);
+    }
+
     if (!beginItemMutation(item.id)) {
       queueItemDelta(item.id, delta);
       return;
@@ -683,14 +815,13 @@ export function MenuSections({
 
       while (true) {
         const queuedDelta = consumeQueuedItemDelta(item.id);
-        if (queuedDelta === 0) {
-          break;
-        }
+        if (queuedDelta === 0) break;
         latestLines = await applyDeltaMutation(item, defaultOptionIds, latestLines, queuedDelta);
       }
     } catch {
+      // On error revert optimistic and reload from server
+      clearOptimisticForItem(item.id);
       await loadCart();
-      // Keep control silent on quick interactions.
     } finally {
       finishItemMutation(item.id);
       const trailingDelta = consumeQueuedItemDelta(item.id);
@@ -700,7 +831,12 @@ export function MenuSections({
         if (remainder !== 0) {
           queueItemDelta(item.id, remainder);
         }
-        void mutateItemCount(item, sign > 0 ? "inc" : "dec");
+        // Pass skipOptimistic=true: these trailing clicks already updated the
+        // optimistic counter when the user pressed the button.
+        void mutateItemCount(item, sign > 0 ? "inc" : "dec", true);
+      } else {
+        // All mutations done — let server state take over display
+        clearOptimisticForItem(item.id);
       }
     }
   }
@@ -766,7 +902,7 @@ export function MenuSections({
             className={
               useAdminCompactCards
                 ? "grid gap-3"
-                : "grid gap-3 md:[grid-template-columns:repeat(auto-fill,minmax(min(100%,430px),1fr))] md:[grid-auto-rows:1fr]"
+                : "grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 md:grid-cols-4"
             }
           >
             {section.items.map((item) => {
@@ -828,6 +964,8 @@ export function MenuSections({
 
                             className={`h-full w-full object-cover ${isAvailable ? "" : "grayscale"}`}
 
+                            style={{ objectPosition: `${item.focalX ?? 50}% ${item.focalY ?? 50}%` }}
+
                           />
 
                         ) : (
@@ -882,55 +1020,7 @@ export function MenuSections({
                             prices={prices}
                             className="rounded-full border border-[color:var(--accent)] bg-[#ffe7cb] px-3 py-1 text-xs font-semibold text-[#994b14]"
                           />
-                          <button
-
-                            type="button"
-
-                            onClick={(event) => {
-
-                              event.preventDefault();
-
-                              event.stopPropagation();
-
-                              void onAdminEditItem?.(item.id);
-
-                            }}
-
-                            aria-label={`Edit ${item.name}`}
-
-                            className="relative z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
-
-                            disabled={!onAdminEditItem}
-
-                          >
-
-                            <svg
-
-                              viewBox="0 0 24 24"
-
-                              className="h-5 w-5"
-
-                              fill="none"
-
-                              stroke="currentColor"
-
-                              strokeWidth="2.5"
-
-                              strokeLinecap="round"
-
-                              strokeLinejoin="round"
-
-                              aria-hidden="true"
-
-                            >
-
-                              <path d="M12 20h9" />
-
-                              <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L8 18l-4 1 1-4 11.5-11.5z" />
-
-                            </svg>
-
-                          </button>
+                          {renderAdminActions(item, "h-9 w-9", "h-5 w-5")}
 
                         </div>
 
@@ -944,229 +1034,78 @@ export function MenuSections({
 
               }
 
-
+              const cardRot = CARD_ROTATIONS[stableHash(item.id, 1) % CARD_ROTATIONS.length];
+              const palette = MINT_PALETTE;
 
               return (
 
-                <div key={item.id} className="relative h-full w-full">
-
+                <div key={item.id} className="relative mx-auto w-full max-w-[200px]" style={{ transform: `rotate(${cardRot}deg)` }}>
+                  {/* Back layers */}
+                  <div className={`absolute inset-0 ${palette.layer1}`} style={{ transform: "translateX(8px) translateY(6px) rotate(4deg)" }} />
+                  <div className={`absolute inset-0 ${palette.layer2}`} style={{ transform: "translateX(4px) translateY(3px) rotate(2deg)" }} />
                   {!isAvailable ? (
-
                     <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
-
-                      <span className="rounded-lg bg-black/80 px-4 py-2 text-lg font-black uppercase tracking-wide text-white">
-
+                      <span className="rounded-lg bg-black/80 px-3 py-1.5 text-sm font-black uppercase tracking-wide text-white">
                         Unavailable
-
                       </span>
-
                     </div>
-
                   ) : null}
-
-
-
                   <article
-
-                    className={`relative flex h-full flex-col rounded-[12px] border-[2px] border-[#2d1d13] p-2 shadow-[2px_2px_0_0_#2d1d13] sm:rounded-[16px] sm:border-[3px] sm:p-3 sm:shadow-[4px_4px_0_0_#2d1d13] ${
-
-                      isAvailable
-
-                        ? "bg-[linear-gradient(160deg,#f1f7f2_0%,#e7f1e9_54%,#d9e8dc_100%)]"
-
-                        : "bg-[linear-gradient(160deg,#ececec_0%,#e2e2e2_54%,#d6d6d6_100%)]"
-
-                    }`}
-
+                    className={`relative ${palette.cardBg} p-3 pb-8 ${isAvailable ? "" : "grayscale"}`}
+                    style={{ boxShadow: `4px 4px 0 0 ${palette.shadow}` }}
                   >
-
                     {isAvailable ? (
                       <Link
                         href={`/menu/${item.id}`}
                         aria-label={`Open details for ${item.name}`}
-                        className="absolute inset-0 z-10 rounded-[12px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] sm:rounded-[16px]"
+                        className="absolute inset-0 z-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                       >
                         <span className="sr-only">Open details for {item.name}</span>
                       </Link>
                     ) : null}
-                    <div className={`${isAvailable ? "" : "grayscale"}`}>
-                      <div className="grid grid-cols-[minmax(0,1fr)_132px] items-start gap-2 sm:grid-cols-[minmax(0,1fr)_160px] sm:gap-2.5">
-                        <div className="order-2 relative h-[96px] overflow-hidden rounded-lg border-2 border-[#2d1d13] bg-[#fff7ea] sm:h-[120px]">
-                          {item.imageUrls[0] ? (
-                                                        <img
-                              src={item.imageUrls[0]}
-                              alt={item.name}
-                              className={`h-full w-full object-cover ${isAvailable ? "" : "grayscale"}`}
-                            />
-                          ) : (
-                            <div
-                              className={`flex h-full w-full items-center justify-center text-xs text-[#8a470f] ${
-                                isAvailable ? "" : "grayscale"
-                              }`}
-                            >
-                              No image
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="order-1 min-w-0 grid min-h-[96px] grid-rows-[auto_1fr_auto] gap-1 sm:min-h-[120px]">
-                          <h2 className="truncate text-[0.92rem] font-extrabold leading-tight text-[#1f1f1f] sm:text-[0.98rem]">
-                            {item.name}
-                          </h2>
-
-                          <p className="h-[2rem] overflow-hidden text-[0.85rem] leading-[1rem] text-[#8a470f] line-clamp-2 sm:h-[2.3rem] sm:text-[0.92rem] sm:leading-[1.15rem]">
-                            {showDescription ? item.description : "\u00A0"}
-                          </p>
-
-                          <div className="flex items-center justify-between gap-1.5">
-                            <PriceText prices={prices} showSlashPair={adminMode} />
-                            {adminMode ? (
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  void onAdminEditItem?.(item.id);
-                                }}
-                                aria-label={`Edit ${item.name}`}
-                                className="relative z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60 sm:h-10 sm:w-10"
-                                disabled={!onAdminEditItem}
-                              >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  className="h-5 w-5"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  aria-hidden="true"
-                                >
-                                  <path d="M12 20h9" />
-                                  <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L8 18l-4 1 1-4 11.5-11.5z" />
-                                </svg>
-                              </button>
-                            ) : quantity > 0 ? (
-                              <div className="relative z-20 inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-white px-1 py-1">
-                                <button
-                                  type="button"
-                                  onClick={() => void mutateItemCount(item, "dec")}
-                                  disabled={!isCartReady || !isAvailable}
-                                  aria-label={`Decrease ${item.name}`}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--line)] text-sm font-bold text-[#9f430e] hover:bg-[#fff3e6] disabled:cursor-not-allowed disabled:opacity-60 sm:h-8 sm:w-8 sm:text-base"
-                                >
-                                  -
-                                </button>
-                                <span className="min-w-5 text-center text-xs font-extrabold text-[#1f1f1f] sm:text-sm">{quantity}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => void mutateItemCount(item, "inc")}
-                                  disabled={!isCartReady || !isAvailable}
-                                  aria-label={`Increase ${item.name}`}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-bold text-[var(--accent-ink)] hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60 sm:h-8 sm:w-8 sm:text-base"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => void mutateItemCount(item, "inc")}
-                                disabled={!isCartReady || !isAvailable}
-                                aria-label={`Add ${item.name} to cart`}
-                                className="relative z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60 sm:h-10 sm:w-10"
-                              >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  className="h-5 w-5 sm:h-6 sm:w-6"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  aria-hidden="true"
-                                >
-                                  <circle cx="9" cy="20" r="1.6" />
-                                  <circle cx="18" cy="20" r="1.6" />
-                                  <path d="M3 4h2l2.2 10.4h10.4l2.2-7.4H7.4" />
-                                  <path d="M18.2 5.2v4.2" />
-                                  <path d="M16.1 7.3h4.2" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                    <div className={`h-40 w-full overflow-hidden border-2 ${palette.imgBorder}`}>
+                      {item.imageUrls[0] ? (
+                        <img
+                          src={item.imageUrls[0]}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                          style={{ objectPosition: `${item.focalX ?? 50}% ${item.focalY ?? 50}%` }}
+                        />
+                      ) : (
+                        <div className={`flex h-full w-full items-center justify-center text-xs ${palette.noImgCls}`}>No image</div>
+                      )}
                     </div>
-
-                    <div className="hidden">
-                      <h2 className="overflow-hidden text-[1.35rem] font-extrabold leading-tight text-[#1f1f1f] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-                        {item.name}
-                      </h2>
-
-                      <div className="mt-2 overflow-hidden rounded-xl border-2 border-[#2d1d13] bg-[#fff7ea]">
-                        {item.imageUrls[0] ? (
-                          <img src={item.imageUrls[0]} alt={item.name} className="aspect-[4/3] w-full object-cover" />
-                        ) : (
-                          <div className="flex aspect-[4/3] w-full items-center justify-center text-sm text-[#8a470f]">
-                            No image
-                          </div>
-                        )}
-                      </div>
-
-                      <p className="mt-1 overflow-hidden text-[1.1rem] leading-snug text-[#8a470f] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-                        {showDescription ? item.description : "\u00A0"}
-                      </p>
-
-                      <div className="flex items-center justify-between gap-2 pt-3">
-                        <PriceText prices={prices} className="self-end" showSlashPair={adminMode} />
-
-                            {adminMode ? (
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  void onAdminEditItem?.(item.id);
-                                }}
-                                aria-label={`Edit ${item.name}`}
-                                className="relative z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
-                                disabled={!onAdminEditItem}
-                              >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  className="h-5 w-5"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  aria-hidden="true"
-                                >
-                                  <path d="M12 20h9" />
-                                  <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L8 18l-4 1 1-4 11.5-11.5z" />
-                                </svg>
-                              </button>
-                            ) : quantity > 0 ? (
-                              <div className="relative z-20 inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white px-1 py-1">
-                                <button
+                    <div className="pt-3 text-center" style={{ fontFamily: "Georgia, serif" }}>
+                      <h2 className={`line-clamp-2 text-base font-bold leading-tight ${palette.titleCls}`}>{item.name}</h2>
+                      {showDescription ? (
+                        <p className={`mt-0.5 line-clamp-2 text-[0.72rem] font-semibold italic ${palette.descCls}`}>{item.description}</p>
+                      ) : null}
+                      <div className="relative z-20 mt-2 flex items-center justify-between gap-1">
+                        <span className={`text-sm font-black ${palette.priceCls}`}>
+                          {prices.familyPrice !== null
+                            ? `from €${formatEuro(prices.largePrice)}`
+                            : `€${formatEuro(prices.largePrice)}`}
+                        </span>
+                        {adminMode ? (
+                          renderAdminActions(item, "h-8 w-8", "h-4 w-4")
+                        ) : quantity > 0 ? (
+                          <div className={`inline-flex items-center gap-0.5 rounded-full border ${palette.qtyWrapCls} bg-white px-0.5 py-0.5`}>
+                            <button
                               type="button"
                               onClick={() => void mutateItemCount(item, "dec")}
                               disabled={!isCartReady || !isAvailable}
                               aria-label={`Decrease ${item.name}`}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--line)] text-lg font-bold text-[#9f430e] hover:bg-[#fff3e6] disabled:cursor-not-allowed disabled:opacity-60"
+                              className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60 ${palette.decCls}`}
                             >
                               -
                             </button>
-                            <span className="min-w-6 text-center text-sm font-extrabold text-[#1f1f1f]">
-                              {quantity}
-                            </span>
+                            <span className={`min-w-4 text-center text-xs font-extrabold ${palette.qtyNumCls}`}>{quantity}</span>
                             <button
                               type="button"
                               onClick={() => void mutateItemCount(item, "inc")}
                               disabled={!isCartReady || !isAvailable}
                               aria-label={`Increase ${item.name}`}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-lg font-bold text-[var(--accent-ink)] hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
+                              className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60 ${palette.btnCls}`}
                             >
                               +
                             </button>
@@ -1177,30 +1116,14 @@ export function MenuSections({
                             onClick={() => void mutateItemCount(item, "inc")}
                             disabled={!isCartReady || !isAvailable}
                             aria-label={`Add ${item.name} to cart`}
-                            className="relative z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-ink)] transition-transform duration-150 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
+                            className={`relative z-20 px-2.5 py-1 text-[0.65rem] font-black text-white hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60 ${palette.btnCls}`}
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="h-6 w-6"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <circle cx="9" cy="20" r="1.6" />
-                              <circle cx="18" cy="20" r="1.6" />
-                              <path d="M3 4h2l2.2 10.4h10.4l2.2-7.4H7.4" />
-                              <path d="M18.2 5.2v4.2" />
-                              <path d="M16.1 7.3h4.2" />
-                            </svg>
+                            Add
                           </button>
                         )}
                       </div>
                     </div>
                   </article>
-
                 </div>
 
               );
@@ -1251,7 +1174,7 @@ export function MenuSections({
 
   return (
 
-    <main className="pt-2 pb-6 sm:pt-3 sm:pb-10">
+    <main className="pt-0 pb-6 sm:pb-10">
 
       <div className="mx-auto grid w-[min(1460px,calc(100%-2rem))] gap-4">{body}</div>
 

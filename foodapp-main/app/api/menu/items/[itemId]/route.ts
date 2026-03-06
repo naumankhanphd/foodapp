@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPublicItemDetailFromDb } from "@/lib/menu/drizzle-menu";
-import { toErrorResponse } from "@/lib/auth/http.mjs";
+import { toErrorResponse } from "@/lib/auth/http.ts";
 
 type ItemRouteProps = {
   params: Promise<{ itemId: string }>;

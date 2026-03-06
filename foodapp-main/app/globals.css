@@ -7,12 +7,12 @@ html {
 }
 
 :root {
-  --background: #ffffff;
+  --background: #fff5f5;
   --foreground: #1f1f1f;
   --surface: #ffffff;
   --surface-2: #ffffff;
   --muted: #626262;
-  --accent: #f97316;
+  --accent: #dc2626;
   --accent-ink: #ffffff;
   --line: #dedede;
   --font-display: "Inter", "Segoe UI", Arial, Helvetica, sans-serif;
@@ -80,9 +80,10 @@ h3 {
   position: sticky;
   top: 0;
   z-index: 40;
-  border-bottom: 1px solid var(--line);
-  background: rgb(242 242 242 / 0.97);
+  border-bottom: 1px solid #4a3f68;
+  background: rgb(52 43 79 / 0.96);
   backdrop-filter: blur(8px);
+  box-shadow: inset 0 4px 0 0 #2d1d13, inset 0 -4px 0 0 #2d1d13;
 }
 
 .gt-topbar {
@@ -106,11 +107,37 @@ h3 {
 }
 
 .gt-brand {
-  font-size: clamp(1.6rem, 2.2vw, 2.2rem);
-  font-weight: 800;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
   line-height: 1;
-  color: var(--foreground);
+  color: #f5f1ff;
   text-decoration: none;
+}
+
+.gt-brand-word {
+  display: inline-block;
+  font-family: "Segoe Script", "Brush Script MT", "Lucida Handwriting", cursive;
+  font-size: clamp(1.55rem, 2.25vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: #f7f2ff;
+  transform: rotate(-4deg);
+  transform-origin: right center;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.15), 0 6px 12px rgb(0 0 0 / 0.26);
+}
+
+.gt-brand-sub {
+  display: block;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: clamp(0.55rem, 0.8vw, 0.7rem);
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgb(200 190 230 / 0.85);
+  margin-top: 2px;
 }
 
 .gt-nav {
@@ -118,7 +145,7 @@ h3 {
 }
 
 .gt-nav a {
-  color: #5f5f5f;
+  color: #cbc2e8;
   font-size: 0.98rem;
   font-weight: 500;
   border-bottom: 2px solid transparent;
@@ -128,12 +155,12 @@ h3 {
 }
 
 .gt-nav a:hover {
-  color: var(--foreground);
+  color: #f2ecff;
 }
 
 .gt-nav a.is-active,
 .gt-nav a[aria-current="page"] {
-  color: var(--foreground);
+  color: #fff;
   border-bottom-color: var(--accent);
 }
 
@@ -169,13 +196,13 @@ h3 {
 }
 
 .gt-btn-primary:hover {
-  background: #ea6b12;
+  background: #b91c1c;
 }
 
 .gt-btn-outline {
-  border: 1px solid #f0a26b;
+  border: 1px solid #fca5a5;
   background: transparent;
-  color: #d45f11;
+  color: #b91c1c;
 }
 
 .gt-btn-outline:hover {
@@ -185,9 +212,10 @@ h3 {
 
 .gt-mobile-nav summary {
   cursor: pointer;
-  border: 1px solid var(--line);
+  border: 1px solid #5a4d7b;
   border-radius: 0.6rem;
-  background: var(--surface-2);
+  background: #3b315a;
+  color: #f5f1ff;
   padding: 0.55rem 0.8rem;
   font-size: 0.95rem;
   font-weight: 600;
@@ -205,14 +233,14 @@ h3 {
   min-width: 180px;
   display: grid;
   gap: 0.55rem;
-  border: 1px solid var(--line);
+  border: 1px solid #5a4d7b;
   border-radius: 0.8rem;
-  background: var(--surface-2);
+  background: #2f2648;
   padding: 0.75rem;
 }
 
 .gt-mobile-menu a {
-  color: var(--foreground);
+  color: #f5f1ff;
   text-decoration: none;
   font-size: 0.92rem;
 }
@@ -586,8 +614,11 @@ h3 {
 }
 
 .gt-footer {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid #4a3f68;
+  background: #2f2648;
+  color: #ece7ff;
   padding: 2rem 0;
+  box-shadow: inset 0 4px 0 0 #2d1d13, inset 0 -4px 0 0 #2d1d13;
 }
 
 .gt-footer-top {
@@ -599,30 +630,32 @@ h3 {
 .gt-footer h3 {
   font-size: 2rem;
   font-weight: 800;
+  color: #f5f1ff;
 }
 
 .gt-footer h4 {
   font-size: 1rem;
   font-weight: 700;
+  color: #f5f1ff;
 }
 
 .gt-footer p,
 .gt-footer li {
   margin-top: 0.5rem;
-  color: #3a3a3a;
+  color: #d7cfee;
   font-size: 0.98rem;
 }
 
 .gt-footer-link {
   margin-top: 0.75rem;
   display: inline-flex;
-  color: #c95e19;
+  color: #ffa966;
   font-weight: 600;
   text-decoration: none;
 }
 
 .gt-footer-link:hover {
-  color: #a64a12;
+  color: #ffc18f;
 }
 
 .gt-footer ul {
@@ -633,7 +666,7 @@ h3 {
 
 .gt-footer-bottom {
   margin-top: 1.5rem;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid #4a3f68;
   padding-top: 0.8rem;
   display: flex;
   flex-direction: column;
@@ -642,6 +675,7 @@ h3 {
 
 .gt-footer-bottom p {
   margin: 0;
+  color: #d7cfee;
   font-size: 0.94rem;
 }
 

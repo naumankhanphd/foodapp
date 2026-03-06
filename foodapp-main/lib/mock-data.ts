@@ -58,18 +58,19 @@ export const menuItems: MenuItem[] = [
 ];
 
 export const queueOrders: QueueOrder[] = [
-  {
-    id: "ORD-1093",
-    orderType: "DELIVERY",
-    status: "PREPARING",
-    total: 29.3,
-    etaMinutes: 24,
-  },
-  {
-    id: "ORD-1094",
-    orderType: "DINE_IN",
-    status: "READY",
-    total: 18.1,
-    etaMinutes: 2,
-  },
+  { id: "ORD-1093", orderType: "DELIVERY",   status: "PREPARING",        total: 29.30, etaMinutes: 24 },
+  { id: "ORD-1094", orderType: "DINE_IN",    status: "READY",            total: 18.10, etaMinutes: 2  },
+  { id: "ORD-1095", orderType: "PICKUP",     status: "ACCEPTED",         total: 12.50, etaMinutes: 15 },
+  { id: "ORD-1096", orderType: "DELIVERY",   status: "OUT_FOR_DELIVERY", total: 34.75, etaMinutes: 10 },
+  { id: "ORD-1097", orderType: "DINE_IN",    status: "PREPARING",        total: 22.00, etaMinutes: 18 },
+  { id: "ORD-1098", orderType: "PICKUP",     status: "READY",            total: 9.90,  etaMinutes: 1  },
+  { id: "ORD-1099", orderType: "DELIVERY",   status: "ACCEPTED",         total: 41.20, etaMinutes: 35 },
+  { id: "ORD-1100", orderType: "DINE_IN",    status: "PREPARING",        total: 16.60, etaMinutes: 12 },
+  { id: "ORD-1101", orderType: "PICKUP",     status: "ACCEPTED",         total: 8.40,  etaMinutes: 10 },
+  { id: "ORD-1102", orderType: "DELIVERY",   status: "PREPARING",        total: 27.80, etaMinutes: 20 },
+  { id: "ORD-1103", orderType: "DINE_IN",    status: "READY",            total: 55.00, etaMinutes: 3  },
+  { id: "ORD-1104", orderType: "PICKUP",     status: "PREPARING",        total: 14.30, etaMinutes: 8  },
+  { id: "ORD-1105", orderType: "DELIVERY",   status: "OUT_FOR_DELIVERY", total: 38.50, etaMinutes: 7  },
+  { id: "ORD-1106", orderType: "DINE_IN",    status: "ACCEPTED",         total: 19.90, etaMinutes: 22 },
+  { id: "ORD-1107", orderType: "PICKUP",     status: "READY",            total: 11.70, etaMinutes: 1  },
 ];
