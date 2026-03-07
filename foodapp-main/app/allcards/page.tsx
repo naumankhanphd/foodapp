@@ -3,6 +3,8 @@
  * Card-style showcase. Real item data pulled directly from the DB.
  * Delete when a final card style has been chosen.
  */
+/* eslint-disable @next/next/no-img-element */
+import Link from "next/link";
 import { listPublicMenuFromDb } from "../../lib/menu/drizzle-menu.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -149,6 +151,33 @@ function ImgBlock({
     <div
       className={`relative flex items-center justify-center overflow-hidden bg-gradient-to-br ${gradientFor(item.category)} ${className ?? ""}`}
     >
+      <span className="relative select-none text-5xl">{item.emoji}</span>
+    </div>
+  );
+}
+
+// CutoutImgBlock is tuned for photos where the subject background is already
+// removed (transparent PNG/WebP). A multiply blend mode helps hide any light
+// matte edges from auto-cutout tools while keeping the stage pure white.
+function CutoutImgBlock({ item, className }: { item: CardItem; className?: string }) {
+  if (item.imageUrl) {
+    return (
+      <div className={`relative overflow-hidden bg-white ${className ?? ""}`}>
+        <img
+          src={item.imageUrl}
+          alt={item.name}
+          className="absolute inset-0 h-full w-full object-cover p-1.5"
+          style={{
+            objectPosition: `${item.focalX}% ${item.focalY}%`,
+            mixBlendMode: "multiply",
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`relative flex items-center justify-center overflow-hidden bg-white ${className ?? ""}`}>
       <span className="relative select-none text-5xl">{item.emoji}</span>
     </div>
   );
@@ -482,9 +511,9 @@ function C11_Glass({ item }: { item: CardItem }) {
 
 function C12_Polaroid({ item }: { item: CardItem }) {
   return (
-    <div className="mx-auto max-w-[220px] rotate-1 bg-white p-3 pb-8 shadow-2xl shadow-neutral-400">
-      <div className="h-40 w-full overflow-hidden">
-        <ImgBlock item={item} className="h-full w-full" />
+    <div className="mx-auto max-w-[230px] -rotate-1 bg-white p-3 pb-8 shadow-2xl shadow-neutral-400/60">
+      <div className="h-44 w-full overflow-hidden bg-white">
+        <CutoutImgBlock item={item} className="h-full w-full" />
       </div>
       <div className="pt-3 text-center">
         <h2 className="text-base font-bold text-gray-800" style={{ fontFamily: "Georgia, serif" }}>{item.name}</h2>
@@ -1577,6 +1606,279 @@ function C55_Matchbox({ item }: { item: CardItem }) {
   );
 }
 
+/** Night Market v2 — no image, coloured category banner, hard amber shadow */
+function C56_NightMarketDark({ item }: { item: CardItem }) {
+  function bannerCls(cat: string) {
+    const c = cat.toLowerCase();
+    if (c.includes("pizza"))  return "bg-red-600 text-white";
+    if (c.includes("kebab"))  return "bg-amber-500 text-neutral-950";
+    if (c.includes("burger")) return "bg-yellow-400 text-neutral-950";
+    if (c.includes("salaat") || c.includes("salad")) return "bg-emerald-500 text-white";
+    return "bg-orange-500 text-white";
+  }
+  function emoji(cat: string) {
+    const c = cat.toLowerCase();
+    if (c.includes("pizza"))  return "🍕";
+    if (c.includes("kebab"))  return "🥙";
+    if (c.includes("burger")) return "🍔";
+    if (c.includes("salaat") || c.includes("salad")) return "🥗";
+    if (c.includes("drink"))  return "🥤";
+    return "🍽️";
+  }
+  return (
+    <div className="overflow-hidden bg-neutral-950 shadow-[4px_4px_0_0_#f59e0b]">
+      <div className={`flex items-center justify-between px-3 py-2 ${bannerCls(item.category)}`}>
+        <span className="text-[0.58rem] font-black uppercase tracking-widest">{item.category}</span>
+        <span className="text-base leading-none">{emoji(item.category)}</span>
+      </div>
+      <div className="px-3 pt-4 pb-5 text-center" style={{ fontFamily: "Georgia, serif" }}>
+        <h2 className="line-clamp-2 text-base font-black leading-tight text-neutral-100">{item.name}</h2>
+        <p className="mt-1.5 line-clamp-2 text-[0.65rem] italic leading-snug text-neutral-500">{item.shortDesc}</p>
+        <div className="mt-4 flex items-center justify-between gap-1">
+          <span className="text-sm font-black text-amber-400"><PriceDisplay prices={item.prices} /></span>
+          <button type="button" className="bg-amber-500 px-2.5 py-1 text-[0.65rem] font-black text-neutral-950 shadow-[2px_2px_0_0_#000]">Add</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Night Market v3 — no image, neon cyan glow, deep dark bg */
+function C57_NightMarketNeon({ item }: { item: CardItem }) {
+  return (
+    <div className="relative overflow-hidden bg-[#05080f] p-4" style={{ boxShadow: "0 0 0 1px #0e2a3a, 4px 4px 0 0 #06b6d4" }}>
+      {/* Neon divider with category */}
+      <div className="mb-4 flex items-center gap-2">
+        <div className="h-px flex-1" style={{ background: "linear-gradient(to right, transparent, #06b6d4)" }} />
+        <span className="text-[0.58rem] font-black uppercase tracking-widest text-cyan-500">{item.category}</span>
+        <div className="h-px flex-1" style={{ background: "linear-gradient(to left, transparent, #06b6d4)" }} />
+      </div>
+      <h2
+        className="line-clamp-2 text-center text-base font-black leading-tight text-white"
+        style={{ fontFamily: "Georgia, serif", textShadow: "0 0 18px #06b6d4, 0 0 36px #06b6d460" }}
+      >
+        {item.name}
+      </h2>
+      <p className="mt-2 line-clamp-2 text-center text-[0.65rem] italic text-cyan-900">{item.shortDesc}</p>
+      <div className="mt-1 h-px" style={{ background: "linear-gradient(to right, transparent, #06b6d4, transparent)" }} />
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-sm font-black text-cyan-400" style={{ textShadow: "0 0 8px #06b6d4" }}>
+          <PriceDisplay prices={item.prices} />
+        </span>
+        <button type="button" className="border border-cyan-500 px-2.5 py-1 text-[0.65rem] font-black text-cyan-400" style={{ boxShadow: "0 0 8px #06b6d430, 2px 2px 0 0 #06b6d4" }}>Add</button>
+      </div>
+    </div>
+  );
+}
+
+/** Night Market v4 — no image, warm lantern strings, deep wood-dark bg */
+function C58_NightMarketLantern({ item }: { item: CardItem }) {
+  const bulbs = ["#f97316","#eab308","#ef4444","#f97316","#eab308","#a855f7"];
+  return (
+    <div className="overflow-hidden bg-[#130a00]" style={{ boxShadow: "0 0 0 1px #7c3b0c, 4px 4px 0 0 #7c3b0c" }}>
+      {/* Lantern string */}
+      <div className="flex items-end gap-1 bg-[#0d0600] px-3 py-1.5">
+        {bulbs.map((c, i) => (
+          <div key={i} className="flex flex-col items-center">
+            <div className="h-2 w-px bg-orange-900" />
+            <div className="h-2 w-2 rounded-full" style={{ background: c, boxShadow: `0 0 5px ${c}` }} />
+          </div>
+        ))}
+        <div className="flex-1" />
+        <span className="text-[0.55rem] font-bold uppercase tracking-widest text-orange-800">{item.category}</span>
+      </div>
+      <div className="px-4 pt-5 pb-4 text-center" style={{ fontFamily: "Georgia, serif" }}>
+        <h2 className="line-clamp-2 text-base font-black leading-tight text-amber-200">{item.name}</h2>
+        <p className="mt-1.5 line-clamp-2 text-[0.65rem] italic text-orange-900/70">{item.shortDesc}</p>
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-sm font-black text-amber-400"><PriceDisplay prices={item.prices} /></span>
+          <button type="button" className="bg-orange-600 px-2.5 py-1 text-[0.65rem] font-black text-white shadow-[2px_2px_0_0_#7c2d12]">Add</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Night Market v5 — no image, chalkboard, sketchy border */
+function C59_NightMarketChalk({ item }: { item: CardItem }) {
+  return (
+    <div
+      className="relative bg-[#1c2b1c] p-4"
+      style={{ boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.12), 4px 4px 0 0 #0d160d" }}
+    >
+      <div className="mb-3 text-center">
+        <span className="text-[0.58rem] font-bold uppercase tracking-[0.3em] text-white/35">{item.category}</span>
+        <div className="mt-1 h-px bg-white/15" />
+      </div>
+      <h2
+        className="line-clamp-2 text-center text-base font-black leading-tight text-white/90"
+        style={{ fontFamily: "'Segoe Print', 'Comic Sans MS', cursive", textShadow: "1px 1px 0 rgba(255,255,255,0.1)" }}
+      >
+        {item.name}
+      </h2>
+      <p className="mt-2 line-clamp-2 text-center text-[0.65rem] italic text-white/35">{item.shortDesc}</p>
+      <div className="mt-3 h-px bg-white/15" />
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-sm font-black text-white/80"><PriceDisplay prices={item.prices} /></span>
+        <button type="button" className="border border-white/25 px-2.5 py-1 text-[0.65rem] font-black text-white/70 shadow-[2px_2px_0_0_rgba(255,255,255,0.1)]">Add</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sticky Note variants ─────────────────────────────────────────────────────
+
+/** Sticky note — pink, no-image, handwritten, slight tilt */
+function C60_StickyPink({ item }: { item: CardItem }) {
+  return (
+    <div
+      className="relative px-4 pb-5 pt-3"
+      style={{
+        fontFamily: "'Segoe Print', 'Comic Sans MS', cursive",
+        background: "linear-gradient(to bottom right, #fce7f3 88%, #fbcfe8 88%)",
+        boxShadow: "3px 3px 10px rgba(0,0,0,0.18), -1px -1px 3px rgba(0,0,0,0.05)",
+        transform: "rotate(-1.5deg)",
+      }}
+    >
+      <div className="mb-2 h-px bg-pink-200" />
+      <span className="text-[0.55rem] font-bold uppercase tracking-widest text-pink-400">{item.category}</span>
+      <h2 className="mt-1 text-base font-black leading-tight text-pink-900">{item.name}</h2>
+      <p className="mt-1 line-clamp-2 text-[0.65rem] italic text-pink-700/80">{item.shortDesc}</p>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-lg font-black text-pink-900"><PriceDisplay prices={item.prices} /></span>
+        <button type="button" className="rounded bg-pink-500 px-2.5 py-1 text-[0.6rem] font-black text-white shadow-sm">Add ✓</button>
+      </div>
+    </div>
+  );
+}
+
+/** Sticky note — sky-blue stack, three layers like polaroid */
+function C61_StickyStack({ item }: { item: CardItem }) {
+  return (
+    <div className="relative">
+      <div className="absolute inset-0 bg-sky-300" style={{ transform: "translateX(7px) translateY(6px) rotate(3.5deg)" }} />
+      <div className="absolute inset-0 bg-sky-200" style={{ transform: "translateX(3px) translateY(3px) rotate(1.5deg)" }} />
+      <div
+        className="relative px-4 pb-5 pt-3"
+        style={{
+          fontFamily: "'Segoe Print', 'Comic Sans MS', cursive",
+          background: "#bfdbfe",
+          boxShadow: "3px 3px 10px rgba(0,0,0,0.18)",
+        }}
+      >
+        <div className="mb-2 h-px bg-blue-300/60" />
+        <span className="text-[0.55rem] font-bold uppercase tracking-widest text-blue-400">{item.category}</span>
+        <h2 className="mt-1 text-base font-black leading-tight text-blue-900">{item.name}</h2>
+        <p className="mt-1 line-clamp-2 text-[0.65rem] italic text-blue-700/80">{item.shortDesc}</p>
+        <div className="mt-3 flex items-center justify-between">
+          <span className="text-lg font-black text-blue-900"><PriceDisplay prices={item.prices} /></span>
+          <button type="button" className="rounded bg-blue-500 px-2.5 py-1 text-[0.6rem] font-black text-white shadow-sm">Add ✓</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Sticky note — green ruled lines, slight tilt opposite way */
+function C62_StickyRuled({ item }: { item: CardItem }) {
+  return (
+    <div
+      className="relative overflow-hidden px-4 pb-5 pt-3"
+      style={{
+        fontFamily: "Georgia, serif",
+        background: "#bbf7d0",
+        boxShadow: "4px 4px 14px rgba(0,0,0,0.2)",
+        transform: "rotate(1deg)",
+      }}
+    >
+      {[0,1,2,3,4].map(i => (
+        <div key={i} className="absolute left-0 right-0 h-px bg-green-300/50" style={{ top: `${44 + i * 18}px` }} />
+      ))}
+      <div className="relative">
+        <span className="text-[0.55rem] font-bold uppercase tracking-widest text-green-600/80">{item.category}</span>
+        <h2 className="mt-0.5 text-base font-black leading-tight text-green-900">{item.name}</h2>
+        <p className="mt-1 line-clamp-3 text-[0.65rem] text-green-800/80">{item.shortDesc}</p>
+        <div className="mt-3 flex items-center justify-between">
+          <span className="text-base font-black text-green-900"><PriceDisplay prices={item.prices} /></span>
+          <button type="button" className="rounded bg-green-600 px-2.5 py-1 text-[0.6rem] font-black text-white">Add</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Newspaper variants ────────────────────────────────────────────────────────
+
+/** Newspaper — bold broadsheet, no image, oversized headline */
+function C63_NewsBroadsheet({ item }: { item: CardItem }) {
+  return (
+    <div className="border-2 border-[#1a1a1a] bg-white p-3 shadow-[3px_3px_0_0_#1a1a1a]" style={{ fontFamily: "Georgia, serif" }}>
+      <div className="mb-2 border-b-4 border-[#1a1a1a] pb-1 text-center">
+        <p className="text-[0.58rem] font-black uppercase tracking-[0.25em]">★ Today&apos;s Special ★</p>
+      </div>
+      <h2 className="mb-2 text-2xl font-black uppercase leading-none tracking-tight text-[#1a1a1a]">{item.name}</h2>
+      <div className="mb-1.5 flex gap-1 text-[0.52rem] uppercase tracking-widest text-neutral-400">
+        <span>{item.category}</span><span>·</span><span>Today&apos;s Edition</span>
+      </div>
+      <p className="line-clamp-3 text-[0.68rem] leading-[1.4] text-[#3a3020]">{item.description || item.shortDesc}</p>
+      <div className="mt-3 flex items-center justify-between border-t-2 border-[#1a1a1a] pt-2">
+        <span className="text-xl font-black"><PriceDisplay prices={item.prices} /></span>
+        <button type="button" className="bg-[#1a1a1a] px-3 py-1 text-[0.58rem] font-black uppercase tracking-widest text-white">Order</button>
+      </div>
+    </div>
+  );
+}
+
+/** Newspaper — tabloid, full-bleed image, screaming headline */
+function C64_NewsTabloid({ item }: { item: CardItem }) {
+  return (
+    <div className="overflow-hidden border border-[#c8b89a] bg-[#f4eed8]" style={{ fontFamily: "Georgia, serif" }}>
+      <div className="flex items-center justify-between bg-[#1a1a1a] px-3 py-1">
+        <span className="text-[0.5rem] font-black uppercase tracking-[0.2em] text-white">TABLOID ★ EXTRA</span>
+        <span className="text-[0.5rem] uppercase tracking-wide text-neutral-400">{item.category}</span>
+      </div>
+      <div className="h-32 w-full">
+        <ImgBlock item={item} className="h-full w-full" />
+      </div>
+      <div className="p-2.5">
+        <h2 className="text-lg font-black uppercase leading-tight text-[#1a1a1a]">{item.name}</h2>
+        <p className="mt-1 line-clamp-2 text-[0.62rem] leading-[1.35] text-[#3a3020]">{item.shortDesc}</p>
+        <div className="mt-2 flex items-center justify-between border-t border-[#c8b89a] pt-1.5">
+          <span className="text-base font-black text-[#1a1a1a]"><PriceDisplay prices={item.prices} /></span>
+          <button type="button" className="border border-[#1a1a1a] px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-wider">ORDER!</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Newspaper — vintage gazette, sepia, ornate border, greyscale image */
+function C65_NewsVintage({ item }: { item: CardItem }) {
+  return (
+    <div className="border-2 border-[#8B7355] bg-[#FDF6E3] p-3 shadow-md" style={{ fontFamily: "Georgia, serif" }}>
+      <div className="mb-2 text-center">
+        <div className="h-px w-full bg-[#8B7355]" />
+        <p className="py-1 text-[0.55rem] font-bold uppercase tracking-[0.3em] text-[#5a4a35]">❧ The Menu Gazette ❧</p>
+        <div className="h-px w-full bg-[#8B7355]" />
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <span className="text-[0.52rem] uppercase tracking-widest text-[#8B7355]">{item.category}</span>
+          <h2 className="mt-0.5 text-base font-black leading-tight text-[#2c2010]">{item.name}</h2>
+          <p className="mt-1 line-clamp-3 text-[0.62rem] italic leading-[1.35] text-[#5a4a35]">{item.shortDesc}</p>
+        </div>
+        <div className="h-20 w-16 shrink-0 overflow-hidden border border-[#8B7355] grayscale">
+          <ImgBlock item={item} className="h-full w-full" />
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between border-t border-[#8B7355] pt-2">
+        <span className="text-sm font-black text-[#2c2010]"><PriceDisplay prices={item.prices} /></span>
+        <button type="button" className="border border-[#8B7355] px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-widest text-[#5a4a35]">✦ Order</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Background Ideas ─────────────────────────────────────────────────────────
 
 const BG_IDEAS: { name: string; value: string; dark?: boolean }[] = [
@@ -1734,6 +2036,16 @@ export default async function AllCardsPage() {
     { n: 53, label: "Film negative — sprocket strip",     el: <C53_FilmStrip         item={item1} /> },
     { n: 54, label: "Neon sign — dark glow",              el: <C54_NeonSign          item={item2} /> },
     { n: 55, label: "Matchbox label — vintage art",       el: <C55_Matchbox          item={item1} /> },
+    { n: 56, label: "Night Market — category banner",     el: <C56_NightMarketDark   item={item2} /> },
+    { n: 57, label: "Night Market — neon cyan glow",      el: <C57_NightMarketNeon   item={item1} /> },
+    { n: 58, label: "Night Market — lantern strings",     el: <C58_NightMarketLantern item={item2} /> },
+    { n: 59, label: "Night Market — chalkboard",          el: <C59_NightMarketChalk  item={item1} /> },
+    { n: 60, label: "Sticky note — pink tilt",            el: <C60_StickyPink        item={item2} /> },
+    { n: 61, label: "Sticky note — blue stack",           el: <C61_StickyStack       item={item1} /> },
+    { n: 62, label: "Sticky note — green ruled",          el: <C62_StickyRuled       item={item2} /> },
+    { n: 63, label: "Newspaper — bold broadsheet",        el: <C63_NewsBroadsheet    item={item1} /> },
+    { n: 64, label: "Newspaper — tabloid screamer",       el: <C64_NewsTabloid       item={item2} /> },
+    { n: 65, label: "Newspaper — vintage gazette",        el: <C65_NewsVintage       item={item1} /> },
   ];
 
   return (
@@ -1743,7 +2055,7 @@ export default async function AllCardsPage() {
           <h1 className="text-4xl font-black tracking-tight text-neutral-900">Card Style Showcase</h1>
           <p className="mt-1 text-sm text-neutral-500">
             55 designs with real menu data &amp; images ·{" "}
-            <a href="/menu" className="underline">back to menu</a>
+            <Link href="/menu" className="underline">back to menu</Link>
             {" · "}
             <a href="/api/allcards/sample-items" target="_blank" className="underline">
               browse API →

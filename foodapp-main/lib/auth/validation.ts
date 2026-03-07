@@ -99,7 +99,7 @@ export function requireLocation(
   return { lat: latitude, lng: longitude };
 }
 
-export function parseSignupRole(_role: unknown): string {
+export function parseSignupRole(): string {
   return ROLES.CUSTOMER;
 }
 

@@ -4,7 +4,7 @@ import { db } from "../db/client.ts";
 import { cartItems as cartItemsTable, cartSessions as cartSessionsTable } from "../db/menu-schema.ts";
 import { computeCheckoutTotal } from "../pricing.ts";
 import { getAdminItemDetail, getPublicItemDetail } from "../menu/store.ts";
-import { CartValidationError, ORDER_TYPES, OrderType } from "./validation.ts";
+import { CartValidationError, ORDER_TYPES } from "./validation.ts";
 
 // ---------------------------------------------------------------------------
 // Constants

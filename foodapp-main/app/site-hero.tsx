@@ -747,13 +747,13 @@ export function SiteHero() {
                   <button
                     type="button"
                     onClick={() => setGuestCartDrawerOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-[var(--accent-ink)] hover:bg-[#ea6b12]"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#1a1a1a] px-3 py-2 text-sm font-semibold text-white shadow-[0_6px_18px_rgba(0,0,0,0.28)] hover:bg-[#262626]"
                   >
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b35311] px-1 text-[11px] leading-none text-white">
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[11px] font-black leading-none text-white">
                       {guestCart.itemCount}
                     </span>
                     <span>View order</span>
-                    <span className="font-bold">{formatEuro(guestCart.subtotal)}</span>
+                    <span className="font-black text-white/80">{formatEuro(guestCart.subtotal)}</span>
                   </button>
                 ) : (
                   <button
@@ -998,40 +998,59 @@ export function SiteHero() {
                 aria-label="Close order panel"
                 onClick={() => setGuestCartDrawerOpen(false)}
               />
-              <aside className="absolute bottom-0 left-0 right-0 flex h-[90vh] max-h-[90vh] min-h-0 flex-col overflow-hidden rounded-t-[24px] border-x-[3px] border-t-[3px] border-[#2d1d13] bg-[linear-gradient(155deg,#fff4dd_0%,#f9ecd4_60%,#e7f6ef_100%)] p-5 shadow-[0_-10px_22px_rgba(0,0,0,0.32)] md:bottom-0 md:left-auto md:right-0 md:top-0 md:h-auto md:max-h-none md:w-full md:max-w-lg md:rounded-none md:border-x-0 md:border-y-0 md:border-l-[3px] md:shadow-[-8px_0_0_#2d1d13]">
-                <div className="flex shrink-0 items-center justify-between">
-                  <h2 className="text-3xl font-black text-[#1f1f1f]">Your order</h2>
+              <aside className="absolute bottom-0 left-0 right-0 flex h-[90vh] max-h-[90vh] min-h-0 flex-col overflow-hidden rounded-t-[24px] border-x-[3px] border-t-[3px] border-[#1a1a1a] bg-[#f4eed8] p-5 shadow-[0_-10px_22px_rgba(0,0,0,0.32)] md:bottom-0 md:left-auto md:right-0 md:top-0 md:h-auto md:max-h-none md:w-full md:max-w-lg md:rounded-none md:border-x-0 md:border-y-0 md:border-l-[3px] md:shadow-[-8px_0_0_#1a1a1a]">
+                <div className="shrink-0 border-b-4 border-[#1a1a1a] pb-3" style={{ fontFamily: "Georgia, serif" }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[0.58rem] font-black uppercase tracking-[0.22em] text-neutral-500">★ Kitchen Gazette ★</p>
+                      <h2 className="text-3xl font-black uppercase leading-none tracking-tight text-[#1a1a1a]">Your Order</h2>
+                    </div>
                   <button
                     type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#2d1d13] bg-[#fff9ef] text-2xl font-bold leading-none text-[#2d1d13] hover:bg-[#f6ead6]"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center border-2 border-[#1a1a1a] bg-white text-2xl font-bold leading-none text-[#1a1a1a] hover:bg-neutral-100"
                     onClick={() => setGuestCartDrawerOpen(false)}
                     aria-label="Close order panel"
                   >
                     &times;
                   </button>
+                  </div>
                 </div>
 
                 <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
-                  <div className="grid gap-3">
+                  <div className="grid gap-5 py-2">
                     {guestCartItems.length > 0 ? (
-                      guestCartItems.map((item) => {
+                      guestCartItems.map((item, idx) => {
                         const isMutating = guestCartMutatingIds.includes(item.id);
+                        const stickyBgs  = ["#fef08a","#fce7f3","#bfdbfe","#bbf7d0"];
+                        const stickyText = ["#713f12","#831843","#1e40af","#065f46"];
+                        const stickyAcc  = ["#f59e0b","#ec4899","#3b82f6","#10b981"];
+                        const stickyRots = ["-1.5deg","0.8deg","-0.8deg","1.2deg"];
+                        const bg  = stickyBgs [idx % 4];
+                        const txt = stickyText[idx % 4];
+                        const acc = stickyAcc [idx % 4];
+                        const rot = stickyRots[idx % 4];
                         return (
                           <article
                             key={item.id}
-                            className="rounded-xl border-2 border-[#2d1d13] bg-[#fffdf8] p-3 shadow-[3px_3px_0_0_#2d1d13]"
+                            className="relative p-3"
+                            style={{
+                              background: bg,
+                              boxShadow: "3px 3px 10px rgba(0,0,0,0.18), -1px -1px 3px rgba(0,0,0,0.05)",
+                              transform: `rotate(${rot})`,
+                              fontFamily: "'Segoe Print', 'Comic Sans MS', cursive",
+                            }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <h3 className="text-base font-extrabold text-[#1f1f1f]">{item.itemName}</h3>
-                                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#6b5b49]">
-                                  Quantity: {item.quantity}
+                                <h3 className="text-base font-extrabold" style={{ color: txt }}>{item.itemName}</h3>
+                                <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.08em]" style={{ color: txt, opacity: 0.7 }}>
+                                  Qty: {item.quantity}
                                 </p>
                               </div>
                               <button
                                 type="button"
                                 aria-label={`Remove ${item.itemName}`}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#d14343] bg-[#fff1f1] text-[#b91c1c] disabled:opacity-50 sm:h-7 sm:w-7"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-400 bg-white/60 text-red-500 disabled:opacity-50 sm:h-7 sm:w-7"
                                 disabled={isMutating}
                                 onClick={() => void deleteGuestCartItem(item)}
                               >
@@ -1054,22 +1073,24 @@ export function SiteHero() {
                             </div>
 
                             <div className="mt-3 flex items-center justify-between gap-2">
-                              <p className="text-base font-black text-[#1f1f1f]">{formatEuro(item.lineTotal)}</p>
-                              <div className="inline-flex items-center gap-1.5 rounded-full border-2 border-[#2d1d13] bg-[#fff9ef] p-1.5 sm:gap-1 sm:p-1">
+                              <p className="text-base font-black" style={{ color: txt }}>{formatEuro(item.lineTotal)}</p>
+                              <div className="inline-flex items-stretch border-2" style={{ borderColor: acc }}>
                                 <button
                                   type="button"
                                   aria-label={`Decrease quantity for ${item.itemName}`}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#2d1d13] bg-white text-sm font-bold text-[#2d1d13] disabled:opacity-50 sm:h-7 sm:w-7"
+                                  className="inline-flex h-9 w-9 items-center justify-center border-r-2 bg-white/70 text-lg font-black leading-none disabled:opacity-40"
+                                  style={{ borderColor: acc, color: acc }}
                                   disabled={item.quantity <= 1}
                                   onClick={() => void changeGuestCartItemQuantity(item, -1)}
                                 >
-                                  -
+                                  −
                                 </button>
-                                <span className="min-w-6 text-center text-sm font-extrabold text-[#1f1f1f]">{item.quantity}</span>
+                                <span className="flex min-w-8 items-center justify-center px-1 text-sm font-extrabold" style={{ color: txt }}>{item.quantity}</span>
                                 <button
                                   type="button"
                                   aria-label={`Increase quantity for ${item.itemName}`}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-bold text-[var(--accent-ink)] disabled:opacity-50 sm:h-7 sm:w-7"
+                                  className="inline-flex h-9 w-9 items-center justify-center border-l-2 text-base font-black leading-none text-white disabled:opacity-40"
+                                  style={{ borderColor: acc, background: acc }}
                                   disabled={item.quantity >= 20}
                                   onClick={() => void changeGuestCartItemQuantity(item, 1)}
                                 >
@@ -1081,7 +1102,7 @@ export function SiteHero() {
                         );
                       })
                     ) : (
-                      <p className="rounded-xl border-2 border-[#2d1d13] bg-[#fffdf8] p-3 text-sm text-[#4f3f2e]">
+                      <p className="p-3 text-sm" style={{ background: "#fef08a", fontFamily: "'Segoe Print', 'Comic Sans MS', cursive", boxShadow: "3px 3px 10px rgba(0,0,0,0.15)", color: "#713f12" }}>
                         Your order is empty.
                       </p>
                     )}
@@ -1094,19 +1115,22 @@ export function SiteHero() {
                   ) : null}
                 </div>
 
-                <div className="mt-4 shrink-0 rounded-xl border-2 border-[#2d1d13] bg-[#fff9ef] p-4">
-                  <p className="flex items-center justify-between text-sm text-[#4f3f2e]">
-                    <span className="font-semibold">Items</span>
+                <div className="mt-4 shrink-0 border-2 border-[#1a1a1a] bg-[#f4eed8] p-4" style={{ fontFamily: "Georgia, serif" }}>
+                  <div className="border-b-2 border-t-2 border-[#1a1a1a] py-1 text-center">
+                    <p className="text-[0.55rem] font-black uppercase tracking-[0.22em] text-[#1a1a1a]">★ Order Summary ★</p>
+                  </div>
+                  <p className="mt-3 flex items-center justify-between text-sm text-[#3a3020]">
+                    <span className="font-semibold uppercase tracking-wide">Items</span>
                     <span className="font-bold">{guestCart.itemCount}</span>
                   </p>
-                  <p className="mt-2 flex items-center justify-between text-lg font-black text-[#1f1f1f]">
-                    <span>Subtotal</span>
+                  <p className="mt-1 flex items-center justify-between text-2xl font-black text-[#1a1a1a]">
+                    <span className="uppercase tracking-tight">Subtotal</span>
                     <span>{formatEuro(guestCart.subtotal)}</span>
                   </p>
-                  <div className="mt-4 rounded-xl border-2 border-[#2d1d13] bg-[#fffdf8] p-3">
+                  <div className="mt-3 border-2 border-[#1a1a1a] bg-white p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-extrabold text-[#1f1f1f]">Add comment for venue</p>
+                        <p className="text-sm font-extrabold text-[#1a1a1a]">Add comment for venue</p>
                         {!isVenueCommentEditing ? (
                           <p className="mt-1 text-sm text-[#5d5648]">
                             {venueComment
@@ -1118,7 +1142,7 @@ export function SiteHero() {
                       {!isVenueCommentEditing ? (
                         <button
                           type="button"
-                          className="rounded-lg border border-[#2d1d13] bg-[#fff9ef] px-2.5 py-1 text-xs font-semibold text-[#2d1d13] hover:bg-[#f6ead6]"
+                          className="border border-[#1a1a1a] bg-white px-2.5 py-1 text-xs font-semibold text-[#1a1a1a] hover:bg-neutral-100"
                           onClick={startVenueCommentEdit}
                         >
                           Edit
@@ -1129,7 +1153,7 @@ export function SiteHero() {
                     {isVenueCommentEditing ? (
                       <div className="mt-2 grid gap-2">
                         <textarea
-                          className="min-h-24 w-full rounded-lg border-2 border-[#2d1d13] bg-[#fff9ef] px-3 py-2 text-sm text-[#1f1f1f] placeholder:text-[#7b6e5c]"
+                          className="min-h-24 w-full border-2 border-[#1a1a1a] bg-[#fffdf8] px-3 py-2 text-sm text-[#1a1a1a] placeholder:text-[#7b6e5c]"
                           maxLength={280}
                           value={venueCommentDraft}
                           onChange={(event) => setVenueCommentDraft(event.target.value)}
@@ -1140,14 +1164,14 @@ export function SiteHero() {
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              className="rounded-lg border border-[#2d1d13] bg-[#fff9ef] px-3 py-1.5 text-xs font-semibold text-[#2d1d13] hover:bg-[#f6ead6]"
+                              className="border border-[#1a1a1a] bg-white px-3 py-1.5 text-xs font-semibold text-[#1a1a1a] hover:bg-neutral-100"
                               onClick={cancelVenueCommentEdit}
                             >
                               Cancel
                             </button>
                             <button
                               type="button"
-                              className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[var(--accent-ink)] hover:bg-[#ea6b12]"
+                              className="bg-[#1a1a1a] px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800"
                               onClick={saveVenueComment}
                             >
                               Save
@@ -1157,13 +1181,25 @@ export function SiteHero() {
                       </div>
                     ) : null}
                   </div>
-                  <div className="mt-4 grid gap-2">
+                  <div className="mt-4">
                     <button
                       type="button"
-                      className="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-[var(--accent-ink)] hover:bg-[#ea6b12]"
+                      className="w-full border-2 border-[#1a1a1a] shadow-[4px_4px_0_0_#1a1a1a] transition-[box-shadow,transform] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0_0_#1a1a1a]"
                       onClick={() => openAuthModal("login")}
                     >
-                      Login to checkout
+                      <div className="flex items-stretch">
+                        <div className="flex w-12 shrink-0 flex-col items-center justify-center gap-0.5 border-r-2 border-[#1a1a1a] bg-[#fef08a] py-4">
+                          <span className="text-lg font-black leading-none text-[#1a1a1a]">★</span>
+                          <span className="text-[0.45rem] font-black uppercase tracking-widest text-[#1a1a1a]/60" style={{ fontFamily: "Georgia, serif", writingMode: "vertical-lr" }}>order</span>
+                        </div>
+                        <div className="flex flex-1 items-center justify-between bg-[#1a1a1a] px-4 py-4" style={{ fontFamily: "Georgia, serif" }}>
+                          <div className="text-left">
+                            <p className="text-[0.48rem] font-bold uppercase tracking-[0.3em] text-white/50">Ready to order?</p>
+                            <p className="text-sm font-black uppercase tracking-widest text-white">Login to Checkout</p>
+                          </div>
+                          <span className="text-2xl font-black text-white/70">→</span>
+                        </div>
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -1178,13 +1214,16 @@ export function SiteHero() {
             <button
               type="button"
               onClick={() => setGuestCartDrawerOpen(true)}
-              className="fixed inset-x-4 bottom-4 z-[95] mx-auto flex max-w-md items-center justify-between gap-3 rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--accent-ink)] shadow-[0_8px_20px_rgba(0,0,0,0.28)] md:hidden"
+              className="fixed inset-x-4 bottom-8 z-[95] mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-[#1a1a1a] px-4 py-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.35)] md:hidden"
             >
-              <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#b35311] px-1 text-[11px] leading-none text-white">
+              <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-black text-white">
                 {guestCart.itemCount}
               </span>
-              <span className="flex-1 text-left">View order</span>
-              <span className="font-bold">{formatEuro(guestCart.subtotal)}</span>
+              <span className="flex-1 text-left text-sm font-semibold text-white">View order</span>
+              <span className="text-sm font-black text-white/80">{formatEuro(guestCart.subtotal)}</span>
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-white/50" aria-hidden="true">
+                <path d="M5 10h10M11 6l4 4-4 4" />
+              </svg>
             </button>,
             document.body,
           )

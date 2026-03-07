@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { MenuSections, type MenuCategorySection } from "./menu-sections";
 

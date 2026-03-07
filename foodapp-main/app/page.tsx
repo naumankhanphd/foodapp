@@ -219,7 +219,7 @@ export default function Home() {
         <div className="shell">
           <div className="gt-section-head">
             <span className="gt-pill">Featured Menu</span>
-            <h2>What We're Known For</h2>
+            <h2>What We&apos;re Known For</h2>
             <p>From our signature kebabs to crispy pizzas — made fresh to order, every time.</p>
           </div>
           <div className="gt-grid gt-grid-3">
@@ -305,7 +305,7 @@ export default function Home() {
               kebab counter has grown into a full kitchen offering dine-in, delivery, and pickup.
             </p>
             <p>
-              Our recipes haven't changed much. We still marinate in-house, bake our own dough, and
+              Our recipes haven&apos;t changed much. We still marinate in-house, bake our own dough, and
               prepare every order the same way we did on day one — by hand, with care.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">

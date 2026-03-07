@@ -766,7 +766,7 @@ export async function registerWithPassword(input: Record<string, unknown>): Prom
     fullName: input.fullName,
   });
   const password = requirePassword(input.password);
-  parseSignupRole(input.role);
+  parseSignupRole();
 
   return await withConnection(async (connection) => {
     const existing = await findDbUserByEmail(connection, email);
@@ -810,7 +810,7 @@ export async function loginWithPassword(input: Record<string, unknown>): Promise
 export async function beginPasswordSignup(input: Record<string, unknown>): Promise<{ requiresCompletion: true; pendingToken: string; missingFields: string[] }> {
   const email = requireEmail(input.email);
   const password = requirePassword(input.password);
-  parseSignupRole(input.role);
+  parseSignupRole();
 
   return await withConnection(async (connection) => {
     await ensureGooglePendingTable(connection);

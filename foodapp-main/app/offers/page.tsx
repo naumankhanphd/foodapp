@@ -15,25 +15,30 @@ export default function OffersPage() {
   return (
     <main className="py-6 sm:py-10">
       <div className="shell grid gap-5">
-        <header className="rounded-[20px] border-[3px] border-[#2d1d13] bg-[linear-gradient(155deg,#fff4dd_0%,#f9ecd4_58%,#e7f6ef_100%)] p-5 shadow-[6px_6px_0_0_#2d1d13] sm:p-7">
-          <p className="badge">Customer</p>
-          <h1 className="mt-3 text-3xl font-black text-[#1f1f1f] sm:text-4xl">Offers</h1>
-          <p className="mt-2 text-sm text-[#5f4a38] sm:text-base">
-            Discount and free-delivery campaigns can be managed from the admin dashboard.
-          </p>
-        </header>
-
         <section className="grid gap-4 sm:grid-cols-2">
           {offers.map((offer) => (
             <article
               key={offer.name}
-              className="rounded-[18px] border-[3px] border-[#2d1d13] bg-[#edf5ef] p-5 shadow-[4px_4px_0_0_#2d1d13]"
+              className="relative bg-[#1c2b1c] p-5"
+              style={{ boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.12), 4px 4px 0 0 #0d160d" }}
             >
-              <h2 className="text-2xl font-black leading-tight text-[#1f1f1f]">{offer.name}</h2>
-              <p className="mt-2 text-sm text-[#5f4a38]">{offer.detail}</p>
-              <p className="mt-3 inline-flex rounded-full border border-[#2d1d13] bg-[#fff8eb] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#4f3f2e]">
-                {offer.scope}
-              </p>
+              {/* Scope label + chalk rule */}
+              <div className="mb-3 text-center">
+                <span className="text-[0.6rem] font-bold uppercase tracking-[0.3em] text-white/40">
+                  {offer.scope}
+                </span>
+                <div className="mt-1.5 h-px bg-white/15" />
+              </div>
+              {/* Chalk title */}
+              <h2
+                className="text-center text-xl font-black leading-tight text-white/90"
+                style={{ fontFamily: "'Segoe Print', 'Comic Sans MS', cursive", textShadow: "1px 1px 0 rgba(255,255,255,0.1)" }}
+              >
+                {offer.name}
+              </h2>
+              {/* Detail */}
+              <p className="mt-2.5 text-center text-sm italic text-white/50">{offer.detail}</p>
+              <div className="mt-4 h-px bg-white/15" />
             </article>
           ))}
         </section>

@@ -81,7 +81,7 @@ export function SectionNav({ sections, orientation = "horizontal" }: SectionNavP
       className={
         isVertical
           ? "sticky top-24 z-20"
-          : "sticky top-[68px] z-30 mx-1.5 rounded-b-2xl border-x-[3px] border-b-[3px] border-[#2d1d13] bg-[rgb(52_43_79_/_0.96)] px-2 py-2 backdrop-blur sm:-mx-2"
+          : "relative z-30 mx-1.5 mb-3 rounded-b-2xl border-x-[3px] border-b-[3px] border-[#2d1d13] bg-[rgb(52_43_79_/_0.96)] px-2 py-2 sm:-mx-2 sm:mb-4"
       }
     >
       <div

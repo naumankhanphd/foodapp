@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CART_UPDATED_EVENT, dispatchCartUpdated } from "@/lib/cart/events";
 
 import { SectionNav } from "./section-nav";
+import { ItemModal } from "./item-modal";
 
 
 
@@ -179,8 +180,44 @@ const MINT_PALETTE = {
   qtyWrapCls: "border-emerald-600",
   decCls:     "border-emerald-600 text-emerald-700 hover:bg-emerald-50",
   qtyNumCls:  "text-emerald-700",
-  btnCls:     "rounded-full bg-emerald-500 shadow-[2px_2px_0_0_#000]",
+  btnCls:     "bg-emerald-500 shadow-[2px_2px_0_0_#000]",
   shadow:     "#047857",
+} as const;
+
+/** In-cart emphasis palette: soft yellow paper + amber accents */
+const SUN_PALETTE = {
+  cardBg:     "bg-[#fffdf2]",
+  layer1:     "bg-amber-300",
+  layer2:     "bg-yellow-100",
+  imgBorder:  "border-[#3b2a14]",
+  imgBg:      "bg-[#fff8dc]",
+  noImgCls:   "text-[#a48750]",
+  titleCls:   "text-[#4a3417]",
+  descCls:    "text-[#8b6b34]",
+  priceCls:   "text-[#3b2a14]",
+  qtyWrapCls: "border-amber-700",
+  decCls:     "border-amber-700 text-amber-800 hover:bg-amber-100",
+  qtyNumCls:  "text-amber-900",
+  btnCls:     "bg-amber-500 shadow-[2px_2px_0_0_#000]",
+  shadow:     "#b45309",
+} as const;
+
+/** High-quantity emphasis palette: warm red when item count gets large */
+const HOT_PALETTE = {
+  cardBg:     "bg-[#fff5f5]",
+  layer1:     "bg-rose-300",
+  layer2:     "bg-red-100",
+  imgBorder:  "border-[#3a1010]",
+  imgBg:      "bg-[#ffe9e9]",
+  noImgCls:   "text-[#a45a5a]",
+  titleCls:   "text-[#5b1414]",
+  descCls:    "text-[#8f3a3a]",
+  priceCls:   "text-[#3a1010]",
+  qtyWrapCls: "border-red-700",
+  decCls:     "border-red-700 text-red-800 hover:bg-red-100",
+  qtyNumCls:  "text-red-900",
+  btnCls:     "bg-red-600 shadow-[2px_2px_0_0_#000]",
+  shadow:     "#b91c1c",
 } as const;
 
 
@@ -288,7 +325,6 @@ function PriceBadge({
   className: string;
 }) {
   const view = toPriceBadgeView(prices);
-
   return (
     <span className={`${className} inline-flex flex-col`}>
       <span className="block whitespace-nowrap leading-tight">{view.primary}</span>
@@ -298,45 +334,6 @@ function PriceBadge({
         </span>
       ) : null}
     </span>
-  );
-}
-
-function PriceText({
-  prices,
-  className,
-  showSlashPair = false,
-}: {
-  prices: { largePrice: number; familyPrice: number | null };
-  className?: string;
-  showSlashPair?: boolean;
-}) {
-  const view = toPriceBadgeView(prices);
-
-  if (showSlashPair) {
-    const slashText = prices.familyPrice === null
-      ? `€${formatEuro(prices.largePrice)}`
-      : `€${formatEuro(prices.largePrice)} / €${formatEuro(prices.familyPrice)}`;
-
-    return (
-      <div className={`leading-tight text-[#1f1f1f] ${className ?? ""}`}>
-        <p className="whitespace-nowrap text-[0.95rem] font-black">{slashText}</p>
-      </div>
-    );
-  }
-
-  if (prices.familyPrice !== null) {
-    return (
-      <div className={`leading-tight text-[#1f1f1f] ${className ?? ""}`}>
-        <p className="text-[0.92rem] font-black text-[#1f1f1f]">Price from €{formatEuro(prices.largePrice)}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`leading-tight text-[#1f1f1f] ${className ?? ""}`}>
-      <p className="text-[0.95rem] font-black">{view.primary}</p>
-      {view.secondary ? <p className="mt-0.5 text-[0.95rem] font-black">{view.secondary}</p> : null}
-    </div>
   );
 }
 
@@ -402,6 +399,7 @@ export function MenuSections({
 }: MenuSectionsProps) {
   const [cartLines, setCartLines] = useState<CartLine[]>([]);
   const [optimisticQty, setOptimisticQty] = useState<Map<string, number>>(() => new Map());
+  const [modalItem, setModalItem] = useState<MenuItem | null>(null);
   const mutatingItemIdsRef = useRef<Set<string>>(new Set());
   const queuedItemDeltasRef = useRef<Map<string, number>>(new Map());
   const isCartReady = true;
@@ -791,7 +789,7 @@ export function MenuSections({
   async function mutateItemCount(item: MenuItem, direction: "inc" | "dec", skipOptimistic = false) {
     const defaultOptionIds = getDefaultOptionIdsForQuickAdd(item.modifierGroups);
     if (!defaultOptionIds) {
-      window.location.assign(`/menu/${item.id}`);
+      setModalItem(item);
       return;
     }
 
@@ -870,7 +868,7 @@ export function MenuSections({
 
           id={section.anchor}
 
-          className={`scroll-mt-32 grid gap-4 ${index === 0 ? "pt-3 sm:pt-5" : "pt-7 sm:pt-9"}`}
+          className={`scroll-mt-32 grid gap-4 ${index === 0 ? "pt-0" : "pt-7 sm:pt-9"}`}
 
         >
 
@@ -902,7 +900,7 @@ export function MenuSections({
             className={
               useAdminCompactCards
                 ? "grid gap-3"
-                : "grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 md:grid-cols-4"
+                : "flex flex-wrap justify-center gap-x-4 gap-y-6"
             }
           >
             {section.items.map((item) => {
@@ -1035,11 +1033,11 @@ export function MenuSections({
               }
 
               const cardRot = CARD_ROTATIONS[stableHash(item.id, 1) % CARD_ROTATIONS.length];
-              const palette = MINT_PALETTE;
+              const palette = quantity >= 5 ? HOT_PALETTE : quantity > 0 ? SUN_PALETTE : MINT_PALETTE;
 
               return (
 
-                <div key={item.id} className="relative mx-auto w-full max-w-[200px]" style={{ transform: `rotate(${cardRot}deg)` }}>
+                <div key={item.id} className="relative w-[min(calc(50%-0.5rem),200px)] shrink-0" style={{ transform: `rotate(${cardRot}deg)` }}>
                   {/* Back layers */}
                   <div className={`absolute inset-0 ${palette.layer1}`} style={{ transform: "translateX(8px) translateY(6px) rotate(4deg)" }} />
                   <div className={`absolute inset-0 ${palette.layer2}`} style={{ transform: "translateX(4px) translateY(3px) rotate(2deg)" }} />
@@ -1055,13 +1053,12 @@ export function MenuSections({
                     style={{ boxShadow: `4px 4px 0 0 ${palette.shadow}` }}
                   >
                     {isAvailable ? (
-                      <Link
-                        href={`/menu/${item.id}`}
+                      <button
+                        type="button"
+                        onClick={() => setModalItem(item)}
                         aria-label={`Open details for ${item.name}`}
-                        className="absolute inset-0 z-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                      >
-                        <span className="sr-only">Open details for {item.name}</span>
-                      </Link>
+                        className="absolute inset-0 z-10 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                      />
                     ) : null}
                     <div className={`h-40 w-full overflow-hidden border-2 ${palette.imgBorder}`}>
                       {item.imageUrls[0] ? (
@@ -1072,7 +1069,7 @@ export function MenuSections({
                           style={{ objectPosition: `${item.focalX ?? 50}% ${item.focalY ?? 50}%` }}
                         />
                       ) : (
-                        <div className={`flex h-full w-full items-center justify-center text-xs ${palette.noImgCls}`}>No image</div>
+                        <div className={`flex h-full w-full items-center justify-center ${palette.imgBg}`} />
                       )}
                     </div>
                     <div className="pt-3 text-center" style={{ fontFamily: "Georgia, serif" }}>
@@ -1164,9 +1161,29 @@ export function MenuSections({
 
 
 
+  const modal = modalItem ? (
+    <ItemModal
+      item={{
+        id: modalItem.id,
+        name: modalItem.name,
+        description: modalItem.description,
+        imageUrls: modalItem.imageUrls,
+        basePrice: modalItem.basePrice,
+        focalX: modalItem.focalX,
+        focalY: modalItem.focalY,
+        categoryName: modalItem.categoryName,
+        modifierGroups: modalItem.modifierGroups,
+      }}
+      onClose={() => {
+        setModalItem(null);
+        void loadCart();
+      }}
+    />
+  ) : null;
+
   if (embedded) {
 
-    return <div className="grid gap-4">{body}</div>;
+    return <div className="grid gap-4">{body}{modal}</div>;
 
   }
 
@@ -1174,9 +1191,10 @@ export function MenuSections({
 
   return (
 
-    <main className="pt-0 pb-6 sm:pb-10">
+    <main className="pt-0 pb-6 sm:pb-10 overflow-x-hidden">
 
-      <div className="mx-auto grid w-[min(1460px,calc(100%-2rem))] gap-4">{body}</div>
+      <div className="mx-auto grid w-[min(1460px,calc(100%-2rem))] gap-0">{body}</div>
+      {modal}
 
     </main>
 
