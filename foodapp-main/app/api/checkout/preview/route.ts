@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ROLES } from "@/lib/auth/config.ts";
 import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
-import { previewCheckout } from "@/lib/cart/store.ts";
+import { previewCheckoutUseCase } from "@/lib/cart/use-cases.ts";
 import { validateCheckoutRequest } from "@/lib/cart/validation.ts";
 
 export async function POST(request: Request) {
@@ -23,9 +23,7 @@ export async function POST(request: Request) {
       };
     };
 
-    const result = await previewCheckout(`user:${session.user.id}`, payload, {
-      user: session.user,
-    });
+    const result = await previewCheckoutUseCase(`user:${session.user.id}`, payload, session.user);
     return NextResponse.json(result);
   } catch (error) {
     return toErrorResponse(error);

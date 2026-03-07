@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getPublicItemDetailFromDb } from "@/lib/menu/drizzle-menu";
+import { getPublicItemDetailUseCase } from "@/lib/menu/use-cases.ts";
 import { AddToCartForm } from "./add-to-cart-form";
 
 type ItemPageProps = {
@@ -40,7 +40,7 @@ export default async function MenuItemDetailPage({ params }: ItemPageProps) {
 
   let item: PublicMenuItemDetail;
   try {
-    item = (await getPublicItemDetailFromDb(itemId)) as PublicMenuItemDetail;
+    item = (await getPublicItemDetailUseCase(itemId)) as PublicMenuItemDetail;
   } catch {
     notFound();
   }

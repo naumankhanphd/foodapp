@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { listPublicMenuFromDb } from "@/lib/menu/drizzle-menu";
+import { listPublicMenuUseCase } from "@/lib/menu/use-cases.ts";
 import { toErrorResponse } from "@/lib/auth/http.ts";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const menu = await listPublicMenuFromDb({
+    const menu = await listPublicMenuUseCase({
       search: searchParams.get("search") || "",
       categoryId: searchParams.get("categoryId") || undefined,
     });

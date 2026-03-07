@@ -1,10 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  completeCustomerProfile,
-  completeGoogleProfile,
-  createSessionTokenForUser,
-  sendPhoneCode,
-} from "@/lib/auth/service.ts";
+import { completeProfileUseCase } from "@/lib/auth/use-cases.ts";
 import {
   getSessionOrThrow,
   parseJsonRequest,
@@ -16,21 +11,11 @@ export async function POST(request: Request) {
   try {
     const body = await parseJsonRequest(request);
     const pendingToken = String(body.pendingToken || "").trim();
-    const user = pendingToken
-      ? await completeGoogleProfile(body)
-      : await completeCustomerProfile({
-          ...body,
-          userId: getSessionOrThrow(request).user.id,
-        });
-
-    const requiresPhoneVerification = !user.phoneVerified;
-    let devPhoneCode;
-    if (requiresPhoneVerification) {
-      const phoneCode = await sendPhoneCode({ userId: user.id });
-      devPhoneCode = phoneCode.devCode;
-    }
-
-    const sessionToken = createSessionTokenForUser(user);
+    const userId = pendingToken ? undefined : getSessionOrThrow(request).user.id;
+    const { user, requiresPhoneVerification, devPhoneCode, sessionToken } = await completeProfileUseCase({
+      body,
+      userId,
+    });
     const response = NextResponse.json({
       user,
       requiresPhoneVerification,

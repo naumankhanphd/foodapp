@@ -1,8 +1,10 @@
-import { listPublicMenuFromDb } from "@/lib/menu/drizzle-menu";
+import { listPublicMenuUseCase } from "@/lib/menu/use-cases.ts";
 import { MenuPageClient } from "./menu-page-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function MenuPage() {
-  const menu = await listPublicMenuFromDb();
+  const menu = await listPublicMenuUseCase({}).catch(() => ({ categories: [], items: [] }));
   const categorySections = menu.categories
     .map((category) => ({
       ...category,

@@ -1,30 +1,18 @@
 import { NextResponse } from "next/server";
-import { beginGoogleAuth, createSessionTokenForUser } from "@/lib/auth/service.ts";
+import { beginGoogleAuthUseCase } from "@/lib/auth/use-cases.ts";
 import { parseJsonRequest, toErrorResponse, withSessionCookie } from "@/lib/auth/http.ts";
 
 export async function POST(request: Request) {
   try {
     const body = await parseJsonRequest(request);
-    const result = await beginGoogleAuth(body);
+    const result = await beginGoogleAuthUseCase(body);
 
     if (result.requiresCompletion) {
-      return NextResponse.json(
-        {
-          requiresCompletion: true,
-          pendingToken: result.pendingToken,
-          missingFields: result.missingFields,
-        },
-        { status: 202 },
-      );
+      return NextResponse.json(result, { status: 202 });
     }
 
-    const user = result.user;
-    if (!user) {
-      throw new Error("Google auth user payload is missing.");
-    }
-
-    const sessionToken = createSessionTokenForUser(user);
-    const response = NextResponse.json({ user, requiresCompletion: false });
+    const response = NextResponse.json({ user: result.user, requiresCompletion: false });
+    const sessionToken = result.sessionToken;
     return withSessionCookie(response, sessionToken);
   } catch (error) {
     return toErrorResponse(error);

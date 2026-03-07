@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ROLES } from "@/lib/auth/config.ts";
 import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
-import { deleteModifierOptionInDb, updateModifierOptionInDb } from "@/lib/menu/drizzle-menu";
+import { deleteModifierOptionUseCase, updateModifierOptionUseCase } from "@/lib/menu/use-cases.ts";
 import { validateModifierOptionUpdate } from "@/lib/menu/validation.ts";
 
 type OptionRouteProps = {
@@ -15,7 +15,7 @@ export async function PATCH(request: Request, { params }: OptionRouteProps) {
     const { optionId } = await params;
     const body = await parseJsonRequest(request);
     const patch = validateModifierOptionUpdate(body);
-    const option = await updateModifierOptionInDb(optionId, patch);
+    const option = await updateModifierOptionUseCase(optionId, patch);
 
     return NextResponse.json({ option });
   } catch (error) {
@@ -28,7 +28,7 @@ export async function DELETE(request: Request, { params }: OptionRouteProps) {
     getSessionOrThrow(request, { roles: [ROLES.ADMIN] });
 
     const { optionId } = await params;
-    await deleteModifierOptionInDb(optionId);
+    await deleteModifierOptionUseCase(optionId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

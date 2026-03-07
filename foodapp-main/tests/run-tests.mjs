@@ -1,8 +1,19 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import mysql from "mysql2/promise";
-import { computeCheckoutTotal } from "../lib/pricing.ts";
-import {
+import * as pricing from "../lib/pricing.ts";
+import * as authService from "../lib/auth/service.ts";
+import * as authPolicy from "../lib/auth/policy.ts";
+import * as menuStore from "../lib/menu/store.ts";
+import * as menuValidation from "../lib/menu/validation.ts";
+import * as cartStore from "../lib/cart/store.ts";
+
+function moduleExports(mod) {
+  return mod && typeof mod === "object" && "default" in mod ? mod.default : mod;
+}
+
+const { computeCheckoutTotal } = moduleExports(pricing);
+const {
   beginGoogleAuth,
   completeGoogleProfile,
   createSessionTokenForUser,
@@ -12,23 +23,23 @@ import {
   resetPassword,
   sendPhoneCode,
   verifyPhoneCode,
-} from "../lib/auth/service.ts";
-import { evaluateAccessPolicy } from "../lib/auth/policy.ts";
-import {
+} = moduleExports(authService);
+const { evaluateAccessPolicy } = moduleExports(authPolicy);
+const {
   createItem,
   getAdminItemDetail,
   listAdminCategories,
   listAdminItems,
   resetMenuStoreForTests,
   updateItem,
-} from "../lib/menu/store.ts";
-import { validateModifierGroupCreate } from "../lib/menu/validation.ts";
-import {
+} = moduleExports(menuStore);
+const { validateModifierGroupCreate } = moduleExports(menuValidation);
+const {
   addCartItem,
   previewCheckout,
   resetCartStoreForTests,
   updateCartItem,
-} from "../lib/cart/store.ts";
+} = moduleExports(cartStore);
 
 const DB_REQUIRED_CASES = new Set([
   "auth: customer signup and login works",

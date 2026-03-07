@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPublicItemDetailFromDb } from "@/lib/menu/drizzle-menu";
+import { getPublicItemDetailUseCase } from "@/lib/menu/use-cases.ts";
 import { toErrorResponse } from "@/lib/auth/http.ts";
 
 type ItemRouteProps = {
@@ -9,7 +9,7 @@ type ItemRouteProps = {
 export async function GET(_: Request, { params }: ItemRouteProps) {
   try {
     const { itemId } = await params;
-    const item = await getPublicItemDetailFromDb(itemId);
+    const item = await getPublicItemDetailUseCase(itemId);
     return NextResponse.json({ item });
   } catch (error) {
     return toErrorResponse(error);

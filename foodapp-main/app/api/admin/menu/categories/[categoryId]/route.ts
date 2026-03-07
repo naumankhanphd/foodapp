@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ROLES } from "@/lib/auth/config.ts";
 import { getSessionOrThrow, parseJsonRequest, toErrorResponse } from "@/lib/auth/http.ts";
-import { deleteCategoryInDb, updateCategoryInDb } from "@/lib/menu/drizzle-menu";
+import { deleteCategoryUseCase, updateCategoryUseCase } from "@/lib/menu/use-cases.ts";
 import { validateCategoryUpdate } from "@/lib/menu/validation.ts";
 
 type CategoryRouteProps = {
@@ -15,7 +15,7 @@ export async function PATCH(request: Request, { params }: CategoryRouteProps) {
     const { categoryId } = await params;
     const body = await parseJsonRequest(request);
     const patch = validateCategoryUpdate(body);
-    const category = await updateCategoryInDb(categoryId, patch);
+    const category = await updateCategoryUseCase(categoryId, patch);
 
     return NextResponse.json({ category });
   } catch (error) {
@@ -28,7 +28,7 @@ export async function DELETE(request: Request, { params }: CategoryRouteProps) {
     getSessionOrThrow(request, { roles: [ROLES.ADMIN] });
 
     const { categoryId } = await params;
-    await deleteCategoryInDb(categoryId);
+    await deleteCategoryUseCase(categoryId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

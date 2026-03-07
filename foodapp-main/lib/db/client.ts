@@ -23,8 +23,25 @@ function createDatabase() {
   return drizzle(databaseUrl);
 }
 
-if (!cache.__foodappDbCache.db) {
-  cache.__foodappDbCache.db = createDatabase();
+function getDatabase(): Database {
+  if (!cache.__foodappDbCache?.db) {
+    cache.__foodappDbCache = cache.__foodappDbCache || {};
+    cache.__foodappDbCache.db = createDatabase();
+  }
+  return cache.__foodappDbCache.db;
 }
 
-export const db = cache.__foodappDbCache.db as Database;
+// Keep the existing `db` import surface while delaying DB/env resolution
+// until the first query access.
+export const db = new Proxy({} as Database, {
+  get(_target, prop) {
+    const instance = getDatabase() as unknown as object;
+    const value = Reflect.get(instance, prop);
+    if (typeof value === "function") {
+      return value.bind(instance);
+    }
+    return value;
+  },
+}) as Database;
+
+export { getDatabase };
